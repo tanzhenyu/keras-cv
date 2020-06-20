@@ -196,6 +196,39 @@ def test_single_gt_single_match_three_neutral():
     np.testing.assert_equal(expected_negative_mask, negative_mask)
 
 
+def test_two_gt_two_matches():
+    anchor_gen = AnchorGenerator(
+        image_size=(300, 300),
+        scales=[0.2],
+        aspect_ratios=[1.0],
+        clip_boxes=False,
+        normalize_coordinates=True,
+    )
+    anchors = anchor_gen((2, 2))
+    # The first box will be matched to the second anchor
+    # The second box will be matched to the last anchor
+    ground_truth_boxes = tf.constant([
+        [0.15, 0.65, 0.35, 0.85],
+        [0.14, 0.64, 0.34, 0.84],
+    ])
+    ground_truth_labels = tf.constant([[8], [6]])
+    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_func(
+        ground_truth_boxes, ground_truth_labels, anchors
+    )
+    expected_matched_gt_boxes = np.asarray(
+        [ground_truth_boxes[1, :], ground_truth_boxes[0, :], anchors[2, :], anchors[3, :]]
+    )
+    np.testing.assert_allclose(expected_matched_gt_boxes, matched_gt_boxes)
+    expected_matched_gt_labels = np.zeros((4, 1))
+    expected_matched_gt_labels[1] = ground_truth_labels[0]
+    expected_matched_gt_labels[0] = ground_truth_labels[1]
+    np.testing.assert_allclose(expected_matched_gt_labels, matched_gt_labels)
+    expected_positive_mask = np.asarray([1, 1, 0, 0]).astype(np.int)
+    expected_negative_mask = np.asarray([0, 0, 1, 1]).astype(np.int)
+    np.testing.assert_equal(expected_positive_mask, positive_mask)
+    np.testing.assert_equal(expected_negative_mask, negative_mask)
+
+
 def test_tf_single_gt_single_match_three_neutral():
     anchor_gen = AnchorGenerator(
         image_size=(300, 300),

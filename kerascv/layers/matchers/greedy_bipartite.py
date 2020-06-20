@@ -55,13 +55,13 @@ def _target_assign_func(
         # resetting weight matrix so the anchor index and ground truth index does not
         # show up in the next iteration, this is until the entire weight matrix
         # becomes 0
-        weight_matrix[ground_truth_index, :] = 0.0
-        weight_matrix[:, anchor_index] = 0.0
+        weight_matrix[ground_truth_index, :] = -0.1
+        weight_matrix[:, anchor_index] = -0.1
 
     # argmax matching
-    # set the already matched anchors to 0 so that it does not show up
+    # set the already matched anchors to negative so that it does not show up
     weight_matrix = np.copy(similarity)
-    weight_matrix[:, matches] = 0
+    weight_matrix[:, matches] = -0.1
 
     anchor_indices = list(range(num_anchors))
     # [n_anchors], the best matched gt index for each anchor
