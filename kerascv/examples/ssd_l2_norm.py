@@ -16,8 +16,12 @@ class L2Normalization(tf.keras.layers.Layer):
     def build(self, input_shape):
         channels = tf.compat.dimension_value(input_shape[self.channel_axis])
         gamma_initializer = tf.keras.initializers.Constant(self.gamma)
-        self.gamma = self.add_weight(name='gamma', shape=(channels,), dtype=tf.float32,
-                                     initializer=gamma_initializer)
+        self.gamma = self.add_weight(
+            name="gamma",
+            shape=(channels,),
+            dtype=tf.float32,
+            initializer=gamma_initializer,
+        )
         super(L2Normalization, self).build(input_shape)
 
     def call(self, x):
@@ -25,6 +29,6 @@ class L2Normalization(tf.keras.layers.Layer):
         return output * tf.cast(self.gamma, x.dtype)
 
     def get_config(self):
-        config = {'gamma': self.gamma}
+        config = {"gamma": self.gamma}
         base_config = super(L2Normalization, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
