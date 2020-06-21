@@ -180,7 +180,7 @@ def encode_flatten_map(features):
     gt_labels = gt_labels + 1
     # expand dimension for future encoding
     gt_labels = gt_labels[:, tf.newaxis]
-    return image, gt_boxes, gt_labels, anchors
+    return image, gt_boxes, gt_labels
 
 
 def assigned_gt_fn(image, gt_boxes, gt_labels):
