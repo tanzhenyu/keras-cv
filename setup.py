@@ -22,7 +22,7 @@ from setuptools import setup
 version = '0.0.1'
 
 setup(
-    name='keras-cv',
+    name='kerascv',
     version=version,
     description='Keras Computer Vision Library',
     url='https://github.com/keras-team/keras-cv',
@@ -33,20 +33,11 @@ setup(
     # download of the gpu version or the cpu version.
     # users should install it manually.
     install_requires=[
-        'packaging',
-        'future',
-        'numpy',
-        'tabulate',
-        'terminaltables',
-        'colorama',
-        'tqdm',
-        'requests',
+        'tensorflow-datasets'
     ],
     extras_require={
         'tests': ['pytest',
                   'flake8',
-                  'mock',
-                  'portpicker',
                   'pytest-xdist',
                   'pytest-cov'],
     },
