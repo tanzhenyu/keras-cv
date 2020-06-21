@@ -206,7 +206,7 @@ def test_two_gt_two_matches():
     )
     anchors = anchor_gen((2, 2))
     # The first box will be matched to the second anchor
-    # The second box will be matched to the last anchor
+    # The second box will be matched to the first anchor
     ground_truth_boxes = tf.constant([
         [0.15, 0.65, 0.35, 0.85],
         [0.14, 0.64, 0.34, 0.84],

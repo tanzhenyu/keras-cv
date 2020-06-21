@@ -10,6 +10,7 @@ class SSDLossLayer(tf.keras.layers.Layer):
         alpha=1.0,
         negative_positive_ratio=3,
         minimum_negative_examples=0,
+        from_logits=False,
         name=None,
         **kwargs
     ):
@@ -19,13 +20,24 @@ class SSDLossLayer(tf.keras.layers.Layer):
         self.hard_negative_miner = HardNegativeMining(
             negative_positive_ratio, minimum_negative_examples
         )
-        self.reg_loss_fn = tf.keras.losses.Huber(
-            reduction=tf.keras.losses.Reduction.NONE
-        )
+        # self.reg_loss_fn = tf.keras.losses.Huber(
+        #     reduction=tf.keras.losses.Reduction.NONE
+        # )
+        self.reg_loss_fn = self.smooth_L1_loss
         self.cls_loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
-            reduction=tf.keras.losses.Reduction.NONE
+            from_logits=from_logits, reduction=tf.keras.losses.Reduction.NONE
         )
         super(SSDLossLayer, self).__init__(name=name, **kwargs)
+
+    # [batch_size, n_boxes, 4]
+    # THERE IS A BUG IN keras.losses.Huber, WHERE IT AVERAGES THE LOSS ACROSS n_boxes
+    # USING CUSTOMIZED LOSS INSTEAD
+    def smooth_L1_loss(self, y_true, y_pred):
+        absolute_loss = tf.abs(y_true - y_pred)
+        square_loss = 0.5 * (y_true - y_pred) ** 2
+        l1_loss = tf.where(tf.less(absolute_loss, 1.0), square_loss, absolute_loss - 0.5)
+        # [batch_size, n_boxes]
+        return tf.reduce_sum(l1_loss, axis=-1)
 
     # y_reg_true, y_reg_pred: [batch_size, n_boxes, 4]
     # y_cls_true: [batch_size, n_boxes]
@@ -45,7 +57,7 @@ class SSDLossLayer(tf.keras.layers.Layer):
         cls_losses = self.hard_negative_miner(cls_losses, positive_mask, negative_mask)
         reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
         # [batch_size]
-        reg_losses = tf.reduce_sum(reg_losses, axis=1)
+        reg_losses = tf.reduce_sum(reg_losses, axis=-1)
         reg_losses = tf.constant(self.alpha, dtype=reg_losses.dtype) * reg_losses
         n_positives = tf.reduce_sum(positive_mask)
         n_positives = tf.maximum(
