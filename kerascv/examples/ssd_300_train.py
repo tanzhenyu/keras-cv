@@ -198,8 +198,8 @@ train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2012['train'])
 train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
 encoded_voc_train_ds = train_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
 
-ssd_vgg16_fpn = build_ssd_vgg16_fpn((300, 300, 3), l2_reg=0.5)
-gt_loc_pred, gt_cls_pred = build_ssd_vgg16_head(ssd_vgg16_fpn, l2_reg=0.5)
+ssd_vgg16_fpn = build_ssd_vgg16_fpn((300, 300, 3), l2_reg=0.005)
+gt_loc_pred, gt_cls_pred = build_ssd_vgg16_head(ssd_vgg16_fpn, l2_reg=0.005)
 gt_loc_input = Input((8732, 4), dtype=tf.float32, name='gt_loc_true')
 gt_cls_input = Input((8732,), dtype=tf.int64, name='gt_cls_true')
 positive_mask = Input((8732,), dtype=tf.float32, name='positive_mask')
@@ -213,11 +213,26 @@ model_inputs = {'image': ssd_vgg16_fpn.inputs[0],
                 'negative_mask': negative_mask}
 model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
 train_model = Model(inputs=model_inputs, outputs=model_outputs)
-optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+
+
+def lr_scheduler(epoch, lr):
+    if epoch < 80:
+        return lr
+    elif epoch < 100:
+        return 0.1 * lr
+    else:
+        return 0.01 * lr
+
+
+# optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
+    schedule=lr_scheduler, verbose=1)
+optimizer = tf.keras.optimizers.Adam()
 train_model.compile(optimizer)
 
 print('-------------------Start Training-------------------')
-train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000).cache(), epochs=80)
+train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000).cache(), epochs=400,
+                callbacks=[learning_rate_scheduler])
 
 print('-------------------Start Evaluating-------------------')
 test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])
