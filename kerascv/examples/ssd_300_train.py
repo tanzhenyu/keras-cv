@@ -216,12 +216,11 @@ train_model = Model(inputs=model_inputs, outputs=model_outputs)
 
 
 def lr_scheduler(epoch, lr):
-    if epoch < 80:
-        return lr
-    elif epoch < 100:
+    # decay learning rate at epoch 80 and 100
+    if epoch == 80 or epoch == 100:
         return 0.1 * lr
     else:
-        return 0.01 * lr
+        return lr
 
 
 # optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
