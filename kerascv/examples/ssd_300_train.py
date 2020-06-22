@@ -191,30 +191,6 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
             'positive_mask': positive_mask, 'negative_mask': negative_mask}
 
 
-voc_ds_2007 = tfds.load('voc/2007')
-voc_ds_2012 = tfds.load('voc/2012')
-
-train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2012['train'])
-train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
-encoded_voc_train_ds = train_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
-
-ssd_vgg16_fpn = build_ssd_vgg16_fpn((300, 300, 3), l2_reg=0.005)
-gt_loc_pred, gt_cls_pred = build_ssd_vgg16_head(ssd_vgg16_fpn, l2_reg=0.005)
-gt_loc_input = Input((8732, 4), dtype=tf.float32, name='gt_loc_true')
-gt_cls_input = Input((8732,), dtype=tf.int64, name='gt_cls_true')
-positive_mask = Input((8732,), dtype=tf.float32, name='positive_mask')
-negative_mask = Input((8732,), dtype=tf.float32, name='negative_mask')
-gt_final_loc_pred, gt_final_cls_pred = ssd_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred, positive_mask, negative_mask)
-
-model_inputs = {'image': ssd_vgg16_fpn.inputs[0],
-                'matched_gt_boxes': gt_loc_input,
-                'matched_gt_labels': gt_cls_input,
-                'positive_mask': positive_mask,
-                'negative_mask': negative_mask}
-model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
-train_model = Model(inputs=model_inputs, outputs=model_outputs)
-
-
 def lr_scheduler(epoch, lr):
     # decay learning rate at epoch 80 and 100
     if epoch == 80 or epoch == 100:
@@ -223,21 +199,50 @@ def lr_scheduler(epoch, lr):
         return lr
 
 
-# optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
-learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
-    schedule=lr_scheduler, verbose=1)
-optimizer = tf.keras.optimizers.Adam()
-train_model.compile(optimizer)
+def main():
+    voc_ds_2007 = tfds.load('voc/2007')
+    voc_ds_2012 = tfds.load('voc/2012')
 
-print('-------------------Start Training-------------------')
-train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000).cache(), epochs=400,
-                callbacks=[learning_rate_scheduler])
+    train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2012['train'])
+    train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
+    encoded_voc_train_ds = train_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
 
-print('-------------------Start Evaluating-------------------')
-test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])
-test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
-encoded_voc_test_ds = test_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
-train_model.evaluate(encoded_voc_test_ds.batch(32))
+    ssd_vgg16_fpn = build_ssd_vgg16_fpn((300, 300, 3), l2_reg=0.005)
+    gt_loc_pred, gt_cls_pred = build_ssd_vgg16_head(ssd_vgg16_fpn, l2_reg=0.005)
+    gt_loc_input = Input((8732, 4), dtype=tf.float32, name='gt_loc_true')
+    gt_cls_input = Input((8732,), dtype=tf.int64, name='gt_cls_true')
+    positive_mask = Input((8732,), dtype=tf.float32, name='positive_mask')
+    negative_mask = Input((8732,), dtype=tf.float32, name='negative_mask')
+    gt_final_loc_pred, gt_final_cls_pred = ssd_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
+                                                          positive_mask, negative_mask)
 
-print('-------------------Start Saving-------------------')
-train_model.save('ssd_300.h5')
+    model_inputs = {'image': ssd_vgg16_fpn.inputs[0],
+                    'matched_gt_boxes': gt_loc_input,
+                    'matched_gt_labels': gt_cls_input,
+                    'positive_mask': positive_mask,
+                    'negative_mask': negative_mask}
+    model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
+    train_model = Model(inputs=model_inputs, outputs=model_outputs)
+
+    # optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+    learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
+        schedule=lr_scheduler, verbose=1)
+    optimizer = tf.keras.optimizers.Adam()
+    train_model.compile(optimizer)
+
+    print('-------------------Start Training-------------------')
+    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000).cache(), epochs=400,
+                    callbacks=[learning_rate_scheduler])
+
+    print('-------------------Start Evaluating-------------------')
+    test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])
+    test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
+    encoded_voc_test_ds = test_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
+    train_model.evaluate(encoded_voc_test_ds.batch(32))
+
+    print('-------------------Start Saving-------------------')
+    train_model.save('ssd_300.h5')
+
+
+if __name__ == "main":
+    main()
