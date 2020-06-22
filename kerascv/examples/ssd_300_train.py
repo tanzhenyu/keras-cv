@@ -199,7 +199,7 @@ def lr_scheduler(epoch, lr):
         return lr
 
 
-def main():
+def train_eval_save():
     voc_ds_2007 = tfds.load('voc/2007')
     voc_ds_2012 = tfds.load('voc/2012')
 
@@ -245,4 +245,4 @@ def main():
 
 
 if __name__ == "main":
-    main()
+    train_eval_save()
