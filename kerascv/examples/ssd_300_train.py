@@ -3,6 +3,8 @@ from kerascv.layers.iou_similarity import IOUSimilarity
 from kerascv.layers.losses.ssd_loss_layer import SSDLossLayer
 from kerascv.layers.matchers.greedy_bipartite import target_assign_tf_func
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
+from kerascv.examples.preprocessing.color_transforms import photometric_transform
+from kerascv.examples.preprocessing.geometric_transforms import random_flip_horizontal
 from kerascv.examples.ssd_l2_norm import L2Normalization
 
 import numpy as np
@@ -171,7 +173,9 @@ voc_classes = ['background',
 
 def encode_flatten_map(features):
     # image in the range of [0, 255] before subtract
-    image = tf.cast(features['image'] - mean_color, tf.float32)
+    image = features['image']
+    image = photometric_transform(image)
+    image = tf.cast(image - mean_color, tf.float32)
     image = tf.image.resize(image, [300, 300])
     # normalized corner format
     gt_boxes = features['objects']['bbox']
@@ -180,6 +184,7 @@ def encode_flatten_map(features):
     gt_labels = gt_labels + 1
     # expand dimension for future encoding
     gt_labels = gt_labels[:, tf.newaxis]
+    image, gt_boxes = random_flip_horizontal(image, gt_boxes)
     return image, gt_boxes, gt_labels
 
 
@@ -244,5 +249,5 @@ def train_eval_save():
     train_model.save('ssd_300.h5')
 
 
-if __name__ == "main":
+if __name__ == "__main__":
     train_eval_save()

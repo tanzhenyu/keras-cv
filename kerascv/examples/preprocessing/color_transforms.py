@@ -12,5 +12,6 @@ def photometric_transform(image):
         image = tf.image.random_hue(image, 0.05)
     image = tf.image.hsv_to_rgb(image)
     # Ignore lightning noise for now.
+    image = tf.image.convert_image_dtype(image, tf.uint8)
     return image
 
