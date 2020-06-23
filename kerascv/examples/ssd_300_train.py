@@ -234,7 +234,7 @@ def train_eval_save():
 
     train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2012['train'])
     train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_train_ds = train_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
+    encoded_voc_train_ds = train_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn)
 
     ssd_vgg16_fpn = build_ssd_vgg16_fpn((300, 300, 3), l2_reg=0.005)
     gt_loc_pred, gt_cls_pred = build_ssd_vgg16_head(ssd_vgg16_fpn, l2_reg=0.005)
@@ -266,7 +266,7 @@ def train_eval_save():
     print('-------------------Start Evaluating-------------------')
     test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])
     test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_test_ds = test_voc_ds.map(encode_flatten_map).map(assigned_gt_fn)
+    encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn)
     train_model.evaluate(encoded_voc_test_ds.batch(32))
 
     print('-------------------Start Saving-------------------')
