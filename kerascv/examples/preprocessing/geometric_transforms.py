@@ -1,5 +1,8 @@
+import numpy as np
 import tensorflow as tf
-from kerascv.examples.ssd_300_train import mean_color
+
+
+mean_color = np.asarray([123, 117, 104])
 
 
 def random_flip_horizontal(image, ground_truth_boxes, prob=0.5):
