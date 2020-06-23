@@ -96,6 +96,7 @@ def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.0, max_scale=
         padded_y_max = y_max + pad_top
         padded_x_max = x_max + pad_left
         canvas_ground_truth_boxes = tf.concat([padded_y_min, padded_x_min, padded_y_max, padded_x_max], axis=-1)
+        canvas.set_shape((canvas_height, canvas_width, 3))
         return canvas, canvas_ground_truth_boxes
 
     else:
@@ -183,8 +184,12 @@ def random_patch_numpy(image, ground_truth_boxes, ground_truth_labels, lower_sca
 
 
 def random_patch_tf(image, ground_truth_boxes, ground_truth_labels):
-    return tf.numpy_function(
+    patched_image, patched_ground_truth_boxes, patched_ground_truth_labels = tf.numpy_function(
         func=random_patch_numpy,
         inp=[image, ground_truth_boxes, ground_truth_labels],
         Tout=[tf.uint8, tf.int64, tf.int64]
     )
+    patched_image.set_shape([None, None, 3])
+    patched_ground_truth_boxes.set_shape([None, 4])
+    patched_ground_truth_labels.set_shape([None])
+    return patched_image, patched_ground_truth_boxes, patched_ground_truth_labels
