@@ -180,3 +180,11 @@ def random_patch_numpy(image, ground_truth_boxes, ground_truth_labels, lower_sca
             filtered_gt_boxes[:, 2:] -= crop[:2]
 
             return cropped_image, filtered_gt_boxes, filtered_gt_labels
+
+
+def random_patch_tf(image, ground_truth_boxes, ground_truth_labels):
+    return tf.numpy_function(
+        func=random_patch_numpy,
+        inp=[image, ground_truth_boxes, ground_truth_labels],
+        Tout=[tf.uint8, tf.int64, tf.int64]
+    )
