@@ -102,3 +102,81 @@ def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.0, max_scale=
         return image, ground_truth_boxes
 
 
+def iou_numpy(box_a, box_b):
+    # box_a: [n_gt_boxes, 4], box_b: [4]
+    max_yx = np.minimum(box_a[:, 2:], box_b[2:])
+    min_yx = np.maximum(box_a[:, :2], box_b[:2])
+    intersect_side = np.clip((max_yx - min_yx), a_min=0, a_max=np.inf)
+    # [n_gt_boxes, 4]
+    intersect_height = intersect_side[:, 0]
+    intersect_width = intersect_side[:, 1]
+    intersect = intersect_height * intersect_width
+    area_a = (box_a[:, 2] - box_a[:, 0]) * (box_a[:, 3] - box_a[:, 1])
+    area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+    union = area_a + area_b - intersect
+    return intersect / union
+
+
+def random_patch_numpy(image, ground_truth_boxes, ground_truth_labels, lower_scale=0.3,
+                       lower_aspect_ratio=0.5, upper_aspect_ratio=2.0):
+    # the minimum and maximum iou threshold
+    patch_choices = (
+        # use the original image,
+        None,
+        # minimum iou threshold .1, .3, .5, .7, .9
+        (.1, None),
+        (.3, None),
+        (.5, None),
+        (.7, None),
+        (.9, None),
+        # randomly sample a patch
+        (None, None))
+    patch_choices_len = len(patch_choices)
+    # assuming ground truth boxes are denormalized.
+    img_height, img_width, _ = image.shape
+    while True:
+        mode_ind = np.random.choice(patch_choices_len)
+        mode = patch_choices[mode_ind]
+        if not mode:
+            return image, ground_truth_boxes, ground_truth_labels
+
+        iou_threshold, _ = mode
+        if iou_threshold is None:
+            iou_threshold = float('-inf')
+
+        for _ in range(50):
+            # randomly select crop height and width
+            crop_height = np.random.uniform(lower_scale * img_height, img_height)
+            crop_width = np.random.uniform(lower_scale * img_width, img_width)
+
+            # condition 1: aspect ratio must be between lower and upper bound
+            if crop_height / crop_width < lower_aspect_ratio or crop_height / crop_width > upper_aspect_ratio:
+                continue
+
+            # condition 2: at least one ground truth box has center inside the crop
+            crop_y_min = np.random.uniform(img_height - crop_height)
+            crop_x_min = np.random.uniform(img_width - crop_width)
+            crop = np.array(
+                [int(crop_y_min), int(crop_x_min), int(crop_y_min + crop_height), int(crop_x_min + crop_width)])
+            gt_centers = (ground_truth_boxes[:, :2] + ground_truth_boxes[:, 2:]) / 2.0
+            mask_min = (crop[0] < gt_centers[:, 0]) * (crop[1] < gt_centers[:, 1])
+            mask_max = (crop[2] > gt_centers[:, 0] * (crop[3] > gt_centers[:, 1]))
+            mask = mask_min * mask_max
+            if not mask.any():
+                continue
+
+            # condition 3: after condition 2, at least one ground truth box has iou with the random crop larger
+            # than threshold the relative y_min to the original image
+            filtered_gt_boxes = ground_truth_boxes[mask, :].copy()
+            iou = iou_numpy(filtered_gt_boxes, crop)
+            if iou.min() < iou_threshold:
+                continue
+
+            cropped_image = image[crop[0]:crop[2], crop[1]:crop[3], :]
+            filtered_gt_labels = ground_truth_labels[mask]
+            filtered_gt_boxes[:, :2] = np.maximum(filtered_gt_boxes[:, :2], crop[:2])
+            filtered_gt_boxes[:, :2] -= crop[:2]
+            filtered_gt_boxes[:, 2:] = np.minimum(filtered_gt_boxes[:, 2:], crop[2:])
+            filtered_gt_boxes[:, 2:] -= crop[:2]
+
+            return cropped_image, filtered_gt_boxes, filtered_gt_labels
