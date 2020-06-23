@@ -5,10 +5,12 @@ import tensorflow as tf
 mean_color = np.asarray([123, 117, 104])
 
 
-def random_flip_horizontal(image, ground_truth_boxes, prob=0.5):
+def random_flip_horizontal(image, ground_truth_boxes, prob=0.5, normalized=True):
     if tf.random.uniform(shape=()) > prob:
-        # Normalized ground truth box coordinates.
-        width = tf.constant(1.0, tf.float32)
+        if normalized:
+            width = tf.constant(1.0, tf.float32)
+        else:
+            width = tf.cast(image.shape[1], ground_truth_boxes.dtype)
         image = tf.image.flip_left_right(image)
         y_min, x_min, y_max, x_max = tf.split(
             ground_truth_boxes, num_or_size_splits=4, axis=-1
