@@ -10,7 +10,7 @@ def random_flip_horizontal(image, ground_truth_boxes, prob=0.5, normalized=True)
         if normalized:
             width = tf.constant(1.0, tf.float32)
         else:
-            width = tf.cast(image.shape[1], ground_truth_boxes.dtype)
+            width = tf.cast(tf.shape(image)[1], ground_truth_boxes.dtype)
         image = tf.image.flip_left_right(image)
         y_min, x_min, y_max, x_max = tf.split(
             ground_truth_boxes, num_or_size_splits=4, axis=-1
@@ -25,8 +25,8 @@ def random_flip_horizontal(image, ground_truth_boxes, prob=0.5, normalized=True)
 
 
 def normalize_ground_truth_boxes(image, ground_truth_boxes):
-    height = tf.cast(image.shape[0], ground_truth_boxes.dtype)
-    width = tf.cast(image.shape[1], ground_truth_boxes.dtype)
+    height = tf.cast(tf.shape(image)[0], ground_truth_boxes.dtype)
+    width = tf.cast(tf.shape(image)[1], ground_truth_boxes.dtype)
     y_min, x_min, y_max, x_max = tf.split(
         ground_truth_boxes, num_or_size_splits=4, axis=-1
     )
@@ -38,8 +38,8 @@ def normalize_ground_truth_boxes(image, ground_truth_boxes):
 
 
 def denormalize_ground_truth_boxes(image, ground_truth_boxes):
-    height = tf.cast(image.shape[0], ground_truth_boxes.dtype)
-    width = tf.cast(image.shape[1], ground_truth_boxes.dtype)
+    height = tf.cast(tf.shape(image)[0], ground_truth_boxes.dtype)
+    width = tf.cast(tf.shape(image)[1], ground_truth_boxes.dtype)
     y_min, x_min, y_max, x_max = tf.split(
         ground_truth_boxes, num_or_size_splits=4, axis=-1
     )
@@ -55,8 +55,8 @@ def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.0, max_scale=
     # assume that ground_truth_boxes are denormalized.
     # assume image are tf.uint8.
     if tf.random.uniform(shape=()) > prob:
-        img_height = tf.cast(image.shape[0], tf.float32)
-        img_width = tf.cast(image.shape[1], tf.float32)
+        img_height = tf.cast(tf.shape(image)[0], tf.float32)
+        img_width = tf.cast(tf.shape(image)[1], tf.float32)
         scale = tf.random.uniform(shape=(), minval=min_scale, maxval=max_scale, dtype=tf.float32)
         canvas_height = tf.cast(scale * img_height, tf.float32)
         canvas_width = tf.cast(scale * img_width, tf.float32)
