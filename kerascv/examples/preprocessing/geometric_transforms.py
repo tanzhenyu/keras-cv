@@ -96,7 +96,7 @@ def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.0, max_scale=
         padded_y_max = y_max + pad_top
         padded_x_max = x_max + pad_left
         canvas_ground_truth_boxes = tf.concat([padded_y_min, padded_x_min, padded_y_max, padded_x_max], axis=-1)
-        canvas.set_shape((canvas_height, canvas_width, 3))
+        canvas.set_shape((None, None, 3))
         return canvas, canvas_ground_truth_boxes
 
     else:
