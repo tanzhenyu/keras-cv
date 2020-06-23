@@ -3,8 +3,8 @@ from kerascv.layers.iou_similarity import IOUSimilarity
 from kerascv.layers.losses.ssd_loss_layer import SSDLossLayer
 from kerascv.layers.matchers.greedy_bipartite import target_assign_tf_func
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
-from kerascv.examples.preprocessing.color_transforms import photometric_transform
-from kerascv.examples.preprocessing.geometric_transforms import random_flip_horizontal
+from kerascv.examples.preprocessing.color_transforms import *
+from kerascv.examples.preprocessing.geometric_transforms import *
 from kerascv.examples.ssd_l2_norm import L2Normalization
 
 import numpy as np
@@ -171,6 +171,30 @@ voc_classes = ['background',
                'sheep', 'sofa', 'train', 'tvmonitor']
 
 
+def flatten_and_preprocess(features):
+    # image in the range of [0, 255], tf.uint8
+    image = features['image']
+    # [num_gt_boxes, 4] normalized corner format
+    gt_boxes = features['objects']['bbox']
+    # [num_gt_boxes]
+    gt_labels = features['objects']['label']
+    image = photometric_transform(image)
+    # denormalize gt boxes before expand and patch
+    image, gt_boxes = denormalize_ground_truth_boxes(image, gt_boxes)
+    image, gt_boxes = random_expand(image, gt_boxes)
+    image, gt_boxes, gt_labels = random_patch_tf(image, gt_boxes, gt_labels)
+    image, gt_boxes = random_flip_horizontal(image, gt_boxes, normalized=False)
+    # normalize gt boxes before resize
+    image, gt_boxes = normalize_ground_truth_boxes(image, gt_boxes)
+    image = tf.cast(image - mean_color, tf.float32)
+    image = tf.image.resize(image, [300, 300])
+    # reserve 0 for background label
+    gt_labels = gt_labels + 1
+    # expand dimension for future encoding
+    gt_labels = gt_labels[:, tf.newaxis]
+    return image, gt_boxes, gt_labels
+
+
 def encode_flatten_map(features):
     # image in the range of [0, 255] before subtract
     image = features['image']
@@ -236,7 +260,7 @@ def train_eval_save():
     train_model.compile(optimizer)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000).cache(), epochs=400,
+    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000), epochs=400,
                     callbacks=[learning_rate_scheduler])
 
     print('-------------------Start Evaluating-------------------')
