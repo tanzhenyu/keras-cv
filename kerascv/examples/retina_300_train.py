@@ -160,7 +160,7 @@ similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
 mean_color = np.asarray([123, 117, 104])
-retina_loss_layer = RetinaLossLayer()
+retina_loss_layer = RetinaLossLayer(n_classes=21)
 
 # Add background as class 0
 voc_classes = ['background',
