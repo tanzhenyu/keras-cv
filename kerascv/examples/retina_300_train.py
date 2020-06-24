@@ -1,7 +1,7 @@
 from kerascv.layers.anchor_generators.multi_scale_anchor_generator import MultiScaleAnchorGenerator
 from kerascv.layers.iou_similarity import IOUSimilarity
 from kerascv.layers.losses.retina_loss_layer import RetinaLossLayer
-from kerascv.layers.matchers.greedy_bipartite import target_assign_tf_func
+from kerascv.layers.matchers.argmax_matcher import target_assign_argmax
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
 from kerascv.examples.preprocessing.color_transforms import *
 from kerascv.examples.preprocessing.geometric_transforms import *
@@ -207,7 +207,7 @@ def encode_flatten_map(features):
 
 
 def assigned_gt_fn(image, gt_boxes, gt_labels):
-    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_tf_func(gt_boxes, gt_labels, anchors)
+    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(gt_boxes, gt_labels, anchors)
     encoded_matched_gt_boxes = box_encoder(matched_gt_boxes, anchors)
     matched_gt_labels = tf.squeeze(matched_gt_labels, axis=-1)
     return {'image': image, 'matched_gt_boxes': encoded_matched_gt_boxes, 'matched_gt_labels': matched_gt_labels,

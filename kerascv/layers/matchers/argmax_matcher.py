@@ -1,4 +1,7 @@
 import tensorflow as tf
+from kerascv.layers.iou_similarity import IOUSimilarity
+
+iou_layer = IOUSimilarity()
 
 
 class ArgMaxMatcher(tf.keras.layers.Layer):
@@ -71,3 +74,31 @@ class ArgMaxMatcher(tf.keras.layers.Layer):
         }
         base_config = super(ArgMaxMatcher, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+@tf.function(
+    input_signature=[
+        tf.TensorSpec(shape=(None, 4), dtype=tf.float32),
+        tf.TensorSpec(shape=(None, 1), dtype=tf.int64),
+        tf.TensorSpec(shape=(None, 4), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.float32),
+    ]
+)
+def target_assign_argmax(
+        ground_truth_boxes,
+        ground_truth_labels,
+        anchors,
+        positive_iou_threshold=0.5,
+        negative_iou_threshold=0.3):
+    # [n_gt_boxes, n_anchors]
+    similarity = iou_layer(ground_truth_boxes, anchors)
+    # [n_anchors]
+    matched_gt_indices = tf.argmax(similarity, axis=0)
+    # [n_anchors]
+    matched_max_vals = tf.reduce_max(similarity, axis=0)
+    positive_mask = tf.greater(matched_max_vals, positive_iou_threshold)
+    negative_mask = tf.greater(negative_iou_threshold, matched_max_vals)
+    matched_gt_boxes = tf.gather(ground_truth_boxes, matched_gt_indices)
+    matched_gt_labels = tf.gather(ground_truth_labels, matched_gt_indices)
+    return matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask
