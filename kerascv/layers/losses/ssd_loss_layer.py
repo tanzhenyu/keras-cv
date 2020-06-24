@@ -57,7 +57,7 @@ class SSDLossLayer(tf.keras.layers.Layer):
         cls_losses = self.hard_negative_miner(cls_losses, positive_mask, negative_mask)
         reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
         # [batch_size]
-        reg_losses = tf.reduce_sum(reg_losses, axis=-1)
+        reg_losses = tf.reduce_sum(reg_losses * tf.cast(positive_mask, reg_losses.dtype), axis=-1)
         reg_losses = tf.constant(self.alpha, dtype=reg_losses.dtype) * reg_losses
         n_positives = tf.reduce_sum(positive_mask)
         n_positives = tf.maximum(

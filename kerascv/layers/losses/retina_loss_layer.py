@@ -66,7 +66,8 @@ class RetinaLossLayer(tf.keras.layers.Layer):
         # [batch_size, n_boxes]
         cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
         reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
-        # [batch_size]
+        positive_mask = tf.cast(positive_mask, cls_losses.dtype)
+        negative_mask = tf.cast(negative_mask, cls_losses.dtype)
         combined_mask = positive_mask + negative_mask
         # classification loss includes both positive and negative anchors
         cls_losses = tf.reduce_sum(cls_losses * combined_mask, axis=-1)
