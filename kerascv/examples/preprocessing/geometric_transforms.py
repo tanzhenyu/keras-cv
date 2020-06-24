@@ -53,7 +53,7 @@ def denormalize_ground_truth_boxes(image, ground_truth_boxes):
         return image, tf.concat([y_min, x_min, y_max, x_max], axis=-1)
 
 
-def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.0, max_scale=4.0):
+def random_expand(image, ground_truth_boxes, prob=0.5, min_scale=1.05, max_scale=4.0):
     # expand this into a canvas, and put the image somewhere on the canvas
     # assume that ground_truth_boxes are denormalized.
     # assume image are tf.uint8.
