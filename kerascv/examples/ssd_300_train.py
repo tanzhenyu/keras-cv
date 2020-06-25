@@ -228,6 +228,19 @@ def lr_scheduler(epoch, lr):
         return lr
 
 
+class LossesCallbacks(tf.keras.callbacks.Callback):
+    def __init__(self):
+        super(LossesCallbacks, self).__init__()
+
+    def set_model(self, model):
+        self.model = model
+
+    def on_epoch_end(self, epoch, logs=None):
+        losses = self.model.layers[-1].losses
+        print('model reg losses {}'.format(losses[0]))
+        print('model cls losses {}'.format(losses[1]))
+
+
 def train_eval_save():
     voc_ds_2007 = tfds.load('voc/2007')
     voc_ds_2012 = tfds.load('voc/2012')
@@ -261,7 +274,7 @@ def train_eval_save():
 
     print('-------------------Start Training-------------------')
     train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000), epochs=400,
-                    callbacks=[learning_rate_scheduler])
+                    callbacks=[learning_rate_scheduler, LossesCallbacks()])
 
     print('-------------------Start Evaluating-------------------')
     test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])
