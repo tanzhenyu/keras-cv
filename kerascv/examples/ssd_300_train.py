@@ -9,6 +9,7 @@ from kerascv.examples.ssd_l2_norm import L2Normalization
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 
 layers = tf.keras.layers
@@ -62,6 +63,7 @@ def build_ssd_vgg16_fpn(input_shape, l2_reg=0.0005):
         cache_subdir='models',
         file_hash='6d6bbae143d832006294945121d1f1fc')
     vgg_model.load_weights(weights_path)
+    vgg_model.trainable = False
 
     conv4_3_norm = L2Normalization()(conv4_3)
     feature_maps.append(conv4_3_norm)
@@ -186,29 +188,12 @@ def flatten_and_preprocess(features):
     image, gt_boxes = random_flip_horizontal(image, gt_boxes, normalized=False)
     # normalize gt boxes before resize
     image, gt_boxes = normalize_ground_truth_boxes(image, gt_boxes)
-    image = tf.cast(image - mean_color, tf.float32)
+    image = tf.keras.applications.vgg16.preprocess_input(image)
     image = tf.image.resize(image, [300, 300])
     # reserve 0 for background label
     gt_labels = gt_labels + 1
     # expand dimension for future encoding
     gt_labels = gt_labels[:, tf.newaxis]
-    return image, gt_boxes, gt_labels
-
-
-def encode_flatten_map(features):
-    # image in the range of [0, 255] before subtract
-    image = features['image']
-    image = photometric_transform(image)
-    image = tf.cast(image - mean_color, tf.float32)
-    image = tf.image.resize(image, [300, 300])
-    # normalized corner format
-    gt_boxes = features['objects']['bbox']
-    gt_labels = features['objects']['label']
-    # reserve 0 for background label
-    gt_labels = gt_labels + 1
-    # expand dimension for future encoding
-    gt_labels = gt_labels[:, tf.newaxis]
-    image, gt_boxes = random_flip_horizontal(image, gt_boxes)
     return image, gt_boxes, gt_labels
 
 
@@ -222,23 +207,10 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
 
 def lr_scheduler(epoch, lr):
     # decay learning rate at epoch 80 and 100
-    if epoch == 80 or epoch == 100:
+    if epoch == 160 or epoch == 200:
         return 0.1 * lr
     else:
         return lr
-
-
-class LossesCallbacks(tf.keras.callbacks.Callback):
-    def __init__(self):
-        super(LossesCallbacks, self).__init__()
-
-    def set_model(self, model):
-        self.model = model
-
-    def on_epoch_end(self, epoch, logs=None):
-        losses = self.model.layers[-1].losses
-        print('model reg losses {}'.format(losses[0]))
-        print('model cls losses {}'.format(losses[1]))
 
 
 def train_eval_save():
@@ -266,15 +238,22 @@ def train_eval_save():
     model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
     train_model = Model(inputs=model_inputs, outputs=model_outputs)
 
+    print('-------------------Print Trainables-------------------')
+    for var in train_model.trainable_variables:
+        print('var {}'.format(var.name))
+
     # optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
     learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
         schedule=lr_scheduler, verbose=1)
-    optimizer = tf.keras.optimizers.Adam()
+    # optimizer = tf.keras.optimizers.Adam()
+    optimizer = tfa.optimizers.AdamW(weight_decay=0.0005, learning_rate=0.0005, clipvalue=10.0)
     train_model.compile(optimizer)
+    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='./ssd_weights/my_ssd.{epoch:02d}.hdf5',
+                                                       save_weights_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000), epochs=400,
-                    callbacks=[learning_rate_scheduler, LossesCallbacks()])
+    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000), epochs=350,
+                    callbacks=[learning_rate_scheduler, ckpt_callback])
 
     print('-------------------Start Evaluating-------------------')
     test_voc_ds = voc_ds_2007['test'].concatenate(voc_ds_2012['test'])

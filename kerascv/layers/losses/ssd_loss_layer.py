@@ -64,8 +64,12 @@ class SSDLossLayer(tf.keras.layers.Layer):
             tf.constant(1, dtype=cls_losses.dtype),
             tf.cast(n_positives, dtype=cls_losses.dtype),
         )
-        self.add_loss(tf.reduce_sum(reg_losses) / n_positives)
-        self.add_loss(tf.reduce_sum(cls_losses) / n_positives)
+        reg_losses = tf.reduce_sum(reg_losses) / n_positives
+        self.add_loss(reg_losses)
+        cls_losses = tf.reduce_sum(cls_losses) / n_positives
+        self.add_loss(cls_losses)
+        self.add_metric(reg_losses, name='reg_losses_metrics')
+        self.add_metric(cls_losses, name='cls_losses_metrics')
         return y_reg_pred, y_cls_pred
 
     def get_config(self):

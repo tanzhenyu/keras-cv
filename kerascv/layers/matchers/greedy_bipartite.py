@@ -13,7 +13,7 @@ def _target_assign_func(
     ground_truth_labels,
     anchors,
     positive_iou_threshold=0.5,
-    negative_iou_threshold=0.3,
+    negative_iou_threshold=0.5,
 ):
     # ground_truth_boxes: [n_boxes, 4]
     # ground_truth_labels: [n_boxes, 1]
@@ -126,7 +126,7 @@ def target_assign_tf_func(
     ground_truth_labels,
     anchors,
     positive_iou_threshold=tf.constant(0.5, dtype=tf.float32),
-    negative_iou_threshold=tf.constant(0.3, dtype=tf.float32),
+    negative_iou_threshold=tf.constant(0.5, dtype=tf.float32),
 ):
     # do not calculate similarity in numpy functions.
     similarity = iou_layer(ground_truth_boxes, anchors)
