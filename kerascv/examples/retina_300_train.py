@@ -213,11 +213,11 @@ def train_eval_save():
     train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2007['validation']).concatenate(
         voc_ds_2012['train']).concatenate(voc_ds_2012['validation'])
     train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_train_ds = train_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn)
+    encoded_voc_train_ds = train_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32)
 
     test_voc_ds = voc_ds_2007['validation'].concatenate(voc_ds_2012['validation'])
     test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn)
+    encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(10)
 
     retina_vgg16_fpn = build_retina_vgg16_fpn((300, 300, 3))
     gt_loc_pred, gt_cls_pred = build_retina_vgg16_head(retina_vgg16_fpn)
@@ -244,8 +244,8 @@ def train_eval_save():
                                                        save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_voc_train_ds.batch(32).prefetch(1000), epochs=350,
-                    callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_voc_test_ds.batch(32))
+    train_model.fit(encoded_voc_train_ds.prefetch(1000), epochs=350,
+                    callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_voc_test_ds)
 
 
 if __name__ == "__main__":
