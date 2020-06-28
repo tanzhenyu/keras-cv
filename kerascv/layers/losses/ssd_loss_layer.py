@@ -52,24 +52,25 @@ class SSDLossLayer(tf.keras.layers.Layer):
         positive_mask,
         negative_mask,
     ):
+        reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
+        n_positives = tf.reduce_sum(positive_mask)
+        n_positives = tf.maximum(
+            tf.constant(1, dtype=reg_losses.dtype),
+            tf.cast(n_positives, dtype=reg_losses.dtype),
+        )
+        # [batch_size]
+        reg_losses = tf.reduce_sum(reg_losses * tf.cast(positive_mask, reg_losses.dtype)) / n_positives
+        reg_losses = tf.constant(self.alpha, dtype=reg_losses.dtype) * reg_losses
+        self.add_loss(reg_losses)
+        self.add_metric(reg_losses, name='reg_losses_metrics')
+
         cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
         # [batch_size]
         cls_losses = self.hard_negative_miner(cls_losses, positive_mask, negative_mask)
-        reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
-        # [batch_size]
-        reg_losses = tf.reduce_sum(reg_losses * tf.cast(positive_mask, reg_losses.dtype), axis=-1)
-        reg_losses = tf.constant(self.alpha, dtype=reg_losses.dtype) * reg_losses
-        n_positives = tf.reduce_sum(positive_mask)
-        n_positives = tf.maximum(
-            tf.constant(1, dtype=cls_losses.dtype),
-            tf.cast(n_positives, dtype=cls_losses.dtype),
-        )
-        reg_losses = tf.reduce_sum(reg_losses) / n_positives
-        self.add_loss(reg_losses)
         cls_losses = tf.reduce_sum(cls_losses) / n_positives
         self.add_loss(cls_losses)
-        self.add_metric(reg_losses, name='reg_losses_metrics')
         self.add_metric(cls_losses, name='cls_losses_metrics')
+
         return y_reg_pred, y_cls_pred
 
     def get_config(self):

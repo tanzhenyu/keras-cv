@@ -32,10 +32,10 @@ def normalize_ground_truth_boxes(image, ground_truth_boxes):
         y_min, x_min, y_max, x_max = tf.split(
             ground_truth_boxes, num_or_size_splits=4, axis=-1
         )
-        y_min = tf.cast(y_min / height, tf.float32)
-        y_max = tf.cast(y_max / height, tf.float32)
-        x_min = tf.cast(x_min / width, tf.float32)
-        x_max = tf.cast(x_max / width, tf.float32)
+        y_min = tf.cast(y_min, tf.float32) / tf.cast(height, tf.float32)
+        y_max = tf.cast(y_max, tf.float32) / tf.cast(height, tf.float32)
+        x_min = tf.cast(x_min, tf.float32) / tf.cast(width, tf.float32)
+        x_max = tf.cast(x_max, tf.float32) / tf.cast(width, tf.float32)
         return image, tf.concat([y_min, x_min, y_max, x_max], axis=-1)
 
 
@@ -158,27 +158,28 @@ def random_patch_numpy(image, ground_truth_boxes, ground_truth_labels, lower_sca
             if crop_height / crop_width < lower_aspect_ratio or crop_height / crop_width > upper_aspect_ratio:
                 continue
 
-            # condition 2: at least one ground truth box has center inside the crop
             crop_y_min = np.random.uniform(img_height - crop_height)
             crop_x_min = np.random.uniform(img_width - crop_width)
             crop = np.array(
                 [int(crop_y_min), int(crop_x_min), int(crop_y_min + crop_height), int(crop_x_min + crop_width)])
+
+            # condition 2: at least one ground truth box has iou with the random crop larger
+            # than threshold the relative y_min to the original image
+            iou = iou_numpy(ground_truth_boxes, crop)
+            if iou.min() < iou_threshold:
+                continue
+
+            # condition 3: at least one ground truth box has center inside the crop
             gt_centers = (ground_truth_boxes[:, :2] + ground_truth_boxes[:, 2:]) / 2.0
             mask_min = (crop[0] < gt_centers[:, 0]) * (crop[1] < gt_centers[:, 1])
-            mask_max = (crop[2] > gt_centers[:, 0] * (crop[3] > gt_centers[:, 1]))
+            mask_max = (crop[2] > gt_centers[:, 0]) * (crop[3] > gt_centers[:, 1])
             mask = mask_min * mask_max
             if not mask.any():
                 continue
 
-            # condition 3: after condition 2, at least one ground truth box has iou with the random crop larger
-            # than threshold the relative y_min to the original image
             filtered_gt_boxes = ground_truth_boxes[mask, :].copy()
-            iou = iou_numpy(filtered_gt_boxes, crop)
-            if iou.min() < iou_threshold:
-                continue
-
-            cropped_image = image[crop[0]:crop[2], crop[1]:crop[3], :]
-            filtered_gt_labels = ground_truth_labels[mask]
+            cropped_image = image[crop[0]:crop[2], crop[1]:crop[3], :].copy()
+            filtered_gt_labels = ground_truth_labels[mask].copy()
             filtered_gt_boxes[:, :2] = np.maximum(filtered_gt_boxes[:, :2], crop[:2])
             filtered_gt_boxes[:, :2] -= crop[:2]
             filtered_gt_boxes[:, 2:] = np.minimum(filtered_gt_boxes[:, 2:], crop[2:])

@@ -64,22 +64,27 @@ class RetinaLossLayer(tf.keras.layers.Layer):
         negative_mask,
     ):
         # [batch_size, n_boxes]
-        cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
         reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
-        positive_mask = tf.cast(positive_mask, cls_losses.dtype)
-        negative_mask = tf.cast(negative_mask, cls_losses.dtype)
-        combined_mask = positive_mask + negative_mask
-        # classification loss includes both positive and negative anchors
-        cls_losses = tf.reduce_sum(cls_losses * combined_mask, axis=-1)
-        # regression loss includes positive anchors
-        reg_losses = tf.reduce_sum(reg_losses * positive_mask, axis=-1)
+        positive_mask = tf.cast(positive_mask, reg_losses.dtype)
+        negative_mask = tf.cast(negative_mask, reg_losses.dtype)
         n_positives = tf.reduce_sum(positive_mask)
         n_positives = tf.maximum(
-            tf.constant(1, dtype=cls_losses.dtype),
-            tf.cast(n_positives, dtype=cls_losses.dtype),
+            tf.constant(1, dtype=reg_losses.dtype),
+            tf.cast(n_positives, dtype=reg_losses.dtype),
         )
-        self.add_loss(tf.reduce_sum(reg_losses) / n_positives)
-        self.add_loss(tf.reduce_sum(cls_losses) / n_positives)
+        # regression loss includes positive anchors
+        reg_losses = tf.reduce_sum(reg_losses * positive_mask) / n_positives
+        self.add_loss(reg_losses)
+
+        cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
+        # classification loss includes both positive and negative anchors
+        pos_cls_losses = tf.reduce_sum(cls_losses * positive_mask) / n_positives
+        neg_cls_losses = tf.reduce_sum(cls_losses * negative_mask) / n_positives
+        self.add_metric(pos_cls_losses, name='pos_cls_loss')
+        self.add_metric(neg_cls_losses, name='neg_cls_loss')
+        cls_losses = pos_cls_losses + neg_cls_losses
+        self.add_loss(cls_losses)
+
         return y_reg_pred, y_cls_pred
 
     def get_config(self):
