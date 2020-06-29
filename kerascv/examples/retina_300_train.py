@@ -229,29 +229,32 @@ def train_eval_save():
     test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
     encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(10)
 
-    retina_model = build_retina_net()
-    gt_loc_pred, gt_cls_pred = retina_model.outputs
-    gt_loc_input = Input((None, 4), dtype=tf.float32, name='gt_loc_true')
-    gt_cls_input = Input((None,), dtype=tf.int64, name='gt_cls_true')
-    positive_mask = Input((None,), dtype=tf.float32, name='positive_mask')
-    negative_mask = Input((None,), dtype=tf.float32, name='negative_mask')
-    gt_final_loc_pred, gt_final_cls_pred = retina_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
-                                                             positive_mask, negative_mask)
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+        retina_model = build_retina_net()
+        gt_loc_pred, gt_cls_pred = retina_model.outputs
+        gt_loc_input = Input((None, 4), dtype=tf.float32, name='gt_loc_true')
+        gt_cls_input = Input((None,), dtype=tf.int64, name='gt_cls_true')
+        positive_mask = Input((None,), dtype=tf.float32, name='positive_mask')
+        negative_mask = Input((None,), dtype=tf.float32, name='negative_mask')
+        gt_final_loc_pred, gt_final_cls_pred = retina_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
+                                                                 positive_mask, negative_mask)
 
-    model_inputs = {'image': retina_model.inputs[0],
-                    'matched_gt_boxes': gt_loc_input,
-                    'matched_gt_labels': gt_cls_input,
-                    'positive_mask': positive_mask,
-                    'negative_mask': negative_mask}
-    model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
-    train_model = Model(inputs=model_inputs, outputs=model_outputs)
+        model_inputs = {'image': retina_model.inputs[0],
+                        'matched_gt_boxes': gt_loc_input,
+                        'matched_gt_labels': gt_cls_input,
+                        'positive_mask': positive_mask,
+                        'negative_mask': negative_mask}
+        model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
+        train_model = Model(inputs=model_inputs, outputs=model_outputs)
 
-    learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
-        schedule=lr_scheduler, verbose=1)
-    optimizer = tfa.optimizers.AdamW(weight_decay=0.0005, learning_rate=0.001)
-    train_model.compile(optimizer)
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='./retina_weights/my_retina.{epoch:02d}-{val_loss:.2f}.hdf5',
-                                                       save_weights_only=True, save_best_only=True)
+        learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
+            schedule=lr_scheduler, verbose=1)
+        optimizer = tfa.optimizers.AdamW(weight_decay=0.0005, learning_rate=0.001)
+        train_model.compile(optimizer)
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath='./retina_weights/my_retina.{epoch:02d}-{val_loss:.2f}.hdf5',
+            save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
     train_model.fit(encoded_voc_train_ds.prefetch(1000), epochs=350,
