@@ -33,8 +33,8 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
                 `scales=[[.1], [.2]]`, and `aspect_ratios=[[.64], [.1]]`, the base anchor size is 20 and 40, then
                 the anchor heights are 25 and 40, the anchor widths are 16 and 40.
                 The anchor aspect ratio is independent to the original aspect ratio of image size.
-            anchor_dimensions: A list/tuple of ints, or a list/tuple of list/tuple of ints. It represents the anchor
-                dimension. If not None, the `scales` are fraction of anchor_dimensions instead of fraction of
+            dimensions: A list/tuple of ints, or a list/tuple of list/tuple of ints. It represents the anchor
+                dimension. If not None, the `scales` are fraction of dimensions instead of fraction of
                 `image_size`.
             strides: A list/tuple of list/tuple of 2 ints or floats representing the distance between anchor
                 points. For example, `stride=[(30, 40)]` means each anchor is separated by 30 pixels in height,
