@@ -44,7 +44,6 @@ class AnchorGenerator(tf.keras.layers.Layer):
 
     def __init__(
         self,
-        image_size,
         scales,
         aspect_ratios,
         stride=None,
@@ -56,9 +55,6 @@ class AnchorGenerator(tf.keras.layers.Layer):
     ):
         """Constructs a AnchorGenerator."""
 
-        self.image_size = image_size
-        self.image_height = image_size[0]
-        self.image_width = image_size[1]
         self.scales = scales
         self.aspect_ratios = aspect_ratios
         self.stride = stride
@@ -67,11 +63,11 @@ class AnchorGenerator(tf.keras.layers.Layer):
         self.normalize_coordinates = normalize_coordinates
         super(AnchorGenerator, self).__init__(name=name, **kwargs)
 
-    def call(self, feature_map_size):
+    def call(self, image_size, feature_map_size):
         feature_map_height = tf.cast(feature_map_size[0], dtype=tf.float32)
         feature_map_width = tf.cast(feature_map_size[1], dtype=tf.float32)
-        image_height = tf.cast(self.image_height, dtype=tf.float32)
-        image_width = tf.cast(self.image_width, dtype=tf.float32)
+        image_height = tf.cast(image_size[0], dtype=tf.float32)
+        image_width = tf.cast(image_size[1], dtype=tf.float32)
 
         min_image_size = tf.minimum(image_width, image_height)
 
@@ -140,32 +136,30 @@ class AnchorGenerator(tf.keras.layers.Layer):
             y_min, x_min, y_max, x_max = tf.split(
                 box_tensor, num_or_size_splits=4, axis=1
             )
-            y_min_clipped = tf.maximum(tf.minimum(y_min, self.image_height), 0)
-            y_max_clipped = tf.maximum(tf.minimum(y_max, self.image_height), 0)
-            x_min_clipped = tf.maximum(tf.minimum(x_min, self.image_width), 0)
-            x_max_clipped = tf.maximum(tf.minimum(x_max, self.image_width), 0)
+            y_min_clipped = tf.maximum(tf.minimum(y_min, image_height), 0)
+            y_max_clipped = tf.maximum(tf.minimum(y_max, image_height), 0)
+            x_min_clipped = tf.maximum(tf.minimum(x_min, image_width), 0)
+            x_max_clipped = tf.maximum(tf.minimum(x_max, image_width), 0)
             box_tensor = tf.concat(
                 [y_min_clipped, x_min_clipped, y_max_clipped, x_max_clipped], axis=1
             )
 
         if self.normalize_coordinates:
-            box_tensor = box_tensor / tf.constant(
-                [
-                    [
-                        self.image_height,
-                        self.image_width,
-                        self.image_height,
-                        self.image_width,
-                    ]
-                ],
-                dtype=box_tensor.dtype,
+            y_min, x_min, y_max, x_max = tf.split(
+                box_tensor, num_or_size_splits=4, axis=1
+            )
+            y_min_norm = y_min / image_height
+            y_max_norm = y_max / image_height
+            x_min_norm = x_min / image_width
+            x_max_norm = x_max / image_width
+            box_tensor = tf.concat(
+                [y_min_norm, x_min_norm, y_max_norm, x_max_norm], axis=1
             )
 
         return box_tensor
 
     def get_config(self):
         config = {
-            "image_size": self.image_size,
             "scales": self.scales,
             "aspect_ratios": self.aspect_ratios,
             "stride": self.stride,

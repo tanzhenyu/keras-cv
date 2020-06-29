@@ -5,7 +5,6 @@ from kerascv.layers.matchers.argmax_matcher import target_assign_argmax
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
 from kerascv.examples.preprocessing.color_transforms import *
 from kerascv.examples.preprocessing.geometric_transforms import *
-from kerascv.examples.ssd_l2_norm import L2Normalization
 
 import numpy as np
 import tensorflow as tf
@@ -22,120 +21,50 @@ Concatenate = tf.keras.layers.Concatenate
 Input = tf.keras.Input
 Model = tf.keras.Model
 
-WEIGHTS_PATH_NO_TOP = ('https://github.com/fchollet/deep-learning-models/'
-                       'releases/download/v0.1/'
-                       'vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5')
 
-
-# The reason you cannot leave VGG16 backbone as a separate function is that you need conv4_3!
-def build_retina_vgg16_fpn(input_shape):
-    feature_maps = []
+def build_retina_resnet_fpn(input_shape):
     inputs = layers.Input(shape=input_shape)
-    x = inputs
-
-    conv1_1 = Conv2D(64, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv1_1')(x)
-    conv1_2 = Conv2D(64, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv1_2')(conv1_1)
-    pool1 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same', name='pool1')(conv1_2)
-
-    conv2_1 = Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv2_1')(pool1)
-    conv2_2 = Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv2_2')(conv2_1)
-    pool2 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same', name='pool2')(conv2_2)
-
-    conv3_1 = Conv2D(256, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv3_1')(pool2)
-    conv3_2 = Conv2D(256, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv3_2')(conv3_1)
-    conv3_3 = Conv2D(256, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv3_3')(conv3_2)
-    pool3 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same', name='pool3')(conv3_3)
-
-    conv4_1 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv4_1')(pool3)
-    conv4_2 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv4_2')(conv4_1)
-    conv4_3 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv4_3')(conv4_2)
-    pool4 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same', name='pool4')(conv4_3)
-
-    conv5_1 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv5_1')(pool4)
-    conv5_2 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv5_2')(conv5_1)
-    conv5_3 = Conv2D(512, (3, 3), activation='relu', padding='same', kernel_initializer='he_normal', name='conv5_3')(conv5_2)
-    pool5 = MaxPool2D(pool_size=(3, 3), strides=(1, 1), padding='same', name='pool5')(conv5_3)
-
-    vgg_model = tf.keras.Model(inputs, pool5, name='vgg16')
-    weights_path = tf.keras.utils.get_file(
-        'vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5',
-        WEIGHTS_PATH_NO_TOP,
-        cache_subdir='models',
-        file_hash='6d6bbae143d832006294945121d1f1fc')
-    vgg_model.load_weights(weights_path)
-    vgg_model.trainable = False
-
-    conv4_3_norm = L2Normalization()(conv4_3)
-    feature_maps.append(conv4_3_norm)
-    fc6 = Conv2D(1024, (3, 3), dilation_rate=(6, 6), activation='relu', padding='same', kernel_initializer='he_normal', name='fc6')(pool5)
-
-    fc7 = Conv2D(1024, (1, 1), activation='relu', padding='same', kernel_initializer='he_normal', name='fc7')(fc6)
-    feature_maps.append(fc7)
-
-    conv6_1 = Conv2D(256, (1, 1), activation='relu', padding='same', kernel_initializer='he_normal', name='conv6_1')(fc7)
-    conv6_1_pad = ZeroPadding2D(padding=((1, 1), (1, 1)), name='conv6_padding')(conv6_1)
-    conv6_2 = Conv2D(512, (3, 3), strides=(2, 2), activation='relu', padding='valid', kernel_initializer='he_normal', name='conv6_2')(conv6_1_pad)
-    feature_maps.append(conv6_2)
-
-    conv7_1 = Conv2D(128, (1, 1), activation='relu', padding='same', kernel_initializer='he_normal', name='conv7_1')(conv6_2)
-    conv7_1_pad = ZeroPadding2D(padding=((1, 1), (1, 1)), name='conv7_padding')(conv7_1)
-    conv7_2 = Conv2D(256, (3, 3), strides=(2, 2), activation='relu', padding='valid', kernel_initializer='he_normal', name='conv7_2')(conv7_1_pad)
-    feature_maps.append(conv7_2)
-
-    conv8_1 = Conv2D(128, (1, 1), activation='relu', padding='same', kernel_initializer='he_normal', name='conv8_1')(conv7_2)
-    conv8_2 = Conv2D(256, (3, 3), strides=(1, 1), activation='relu', padding='valid', kernel_initializer='he_normal', name='conv8_2')(conv8_1)
-    feature_maps.append(conv8_2)
-
-    conv9_1 = Conv2D(128, (1, 1), activation='relu', padding='same', kernel_initializer='he_normal', name='conv9_1')(conv8_2)
-    conv9_2 = Conv2D(256, (3, 3), strides=(1, 1), activation='relu', padding='valid', kernel_initializer='he_normal', name='conv9_2')(conv9_1)
-    feature_maps.append(conv9_2)
-
-    model = tf.keras.Model(inputs=inputs, outputs=feature_maps)
-
+    backbone = tf.keras.applications.ResNet50(include_top=False, weights='imagenet', input_tensor=inputs)
+    up_sampler = layers.UpSampling2D(2)
+    C3, C4, C5 = [
+        backbone.get_layer(l_name).output for l_name in [
+            "conv3_block4_out", "conv4_block6_out", "conv5_block3_out"
+        ]
+    ]
+    feature_maps = []
+    P3 = Conv2D(256, 1, 1, "same", name="fpn_conv_p3_1")(C3)
+    P4 = Conv2D(256, 1, 1, "same", name="fpn_conv_p4_1")(C4)
+    P5 = Conv2D(256, 1, 1, "same", name="fpn_conv_p5_1")(C5)
+    P4 = P4 + up_sampler(P5)
+    P3 = P3 + up_sampler(P4)
+    P3 = Conv2D(256, 3, 1, "same", name="fpn_conv_p3_3")(P3)
+    P4 = Conv2D(256, 3, 1, "same", name="fpn_conv_p4_3")(P4)
+    feature_maps.append(P3)
+    feature_maps.append(P4)
+    P5 = Conv2D(256, 3, 1, "same", name="fpn_conv_p5_3")(P5)
+    feature_maps.append(P5)
+    P6 = Conv2D(256, 3, 2, "same", name="fpn_conv_p6_3")(C5)
+    feature_maps.append(P6)
+    P7 = Conv2D(256, 3, 2, "same", name="fpn_conv_p7_3")(tf.nn.relu(P6))
+    feature_maps.append(P7)
+    model = Model(inputs=inputs, outputs=feature_maps)
     return model
 
-
-def build_retina_vgg16_head(ssd_vgg16_fpn, n_classes=21):
-    feature_maps = ssd_vgg16_fpn.outputs
-    assert len(feature_maps) == 6
-    conv4_3, fc7, conv6_2, conv7_2, conv8_2, conv9_2 = feature_maps
-    n_boxes = [4, 6, 6, 6, 4, 4]
-
-    conv4_3_loc = Conv2D(n_boxes[0] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='conv4_3_loc')(conv4_3)
-    fc7_loc = Conv2D(n_boxes[1] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='fc7_loc')(fc7)
-    conv6_2_loc = Conv2D(n_boxes[2] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='conv6_2_loc')(conv6_2)
-    conv7_2_loc = Conv2D(n_boxes[3] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='conv7_2_loc')(conv7_2)
-    conv8_2_loc = Conv2D(n_boxes[4] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='conv8_2_loc')(conv8_2)
-    conv9_2_loc = Conv2D(n_boxes[5] * 4, (3, 3), padding='same', kernel_initializer='he_normal', name='conv9_2_loc')(conv9_2)
-
-    conv4_3_conf = Conv2D(n_boxes[0] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='conv4_3_conf')(conv4_3)
-    fc7_conf = Conv2D(n_boxes[1] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='fc7_conf')(fc7)
-    conv6_2_conf = Conv2D(n_boxes[2] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='conv6_2_conf')(conv6_2)
-    conv7_2_conf = Conv2D(n_boxes[3] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='conv7_2_conf')(conv7_2)
-    conv8_2_conf = Conv2D(n_boxes[4] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='conv8_2_conf')(conv8_2)
-    conv9_2_conf = Conv2D(n_boxes[5] * n_classes, (3, 3), padding='same', kernel_initializer='he_normal', name='conv9_2_conf')(conv9_2)
-
-    conv4_3_loc_reshape = Reshape((-1, 4), name='conv4_3_loc_reshape')(conv4_3_loc)
-    fc7_loc_reshape = Reshape((-1, 4), name='fc7_loc_reshape')(fc7_loc)
-    conv6_2_loc_reshape = Reshape((-1, 4), name='conv6_2_loc_reshape')(conv6_2_loc)
-    conv7_2_loc_reshape = Reshape((-1, 4), name='conv7_2_loc_reshape')(conv7_2_loc)
-    conv8_2_loc_reshape = Reshape((-1, 4), name='conv8_2_loc_reshape')(conv8_2_loc)
-    conv9_2_loc_reshape = Reshape((-1, 4), name='conv9_2_loc_reshape')(conv9_2_loc)
-
-    conv4_3_conf_reshape = Reshape((-1, n_classes), name='conv4_3_conf_reshape')(conv4_3_conf)
-    fc7_conf_reshape = Reshape((-1, n_classes), name='fc7_conf_reshape')(fc7_conf)
-    conv6_2_conf_reshape = Reshape((-1, n_classes), name='conv6_2_conf_reshape')(conv6_2_conf)
-    conv7_2_conf_reshape = Reshape((-1, n_classes), name='conv7_2_conf_reshape')(conv7_2_conf)
-    conv8_2_conf_reshape = Reshape((-1, n_classes), name='conv8_2_conf_reshape')(conv8_2_conf)
-    conv9_2_conf_reshape = Reshape((-1, n_classes), name='conv9_2_conf_reshape')(conv9_2_conf)
-
-    bbox_loc = Concatenate(axis=1, name='bbox_loc_pred')([conv4_3_loc_reshape, fc7_loc_reshape, conv6_2_loc_reshape, conv7_2_loc_reshape, conv8_2_loc_reshape, conv9_2_loc_reshape])
-    bbox_conf = Concatenate(axis=1, name='bbox_conf_pred')([conv4_3_conf_reshape, fc7_conf_reshape, conv6_2_conf_reshape, conv7_2_conf_reshape, conv8_2_conf_reshape, conv9_2_conf_reshape])
-    bbox_softmax = tf.keras.layers.Activation('softmax', name='bbox_softmax')(bbox_conf)
-    return bbox_loc, bbox_softmax
+def build_retina_resnet_head(retina_resnet_fpn, n_classes=80):
+    feature_maps = retina_resnet_fpn.outputs
+    prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
+    kernel_init = tf.keras.initializers.RandomNormal(0.0, 0.01)
+    def _build_head(input, output_filters, bias_init):
+        x = input
+        for _ in range(4):
+            x = Conv2D(256, 3, padding="same", kernel_initializer=kernel_init, activation='relu')(x)
+        x = Conv2D(output_filters, 3, 1, padding="same", kernel_initializer=kernel_init, bias_initializer=bias_init)(x)
+        return x
 
 
-image_size = [300, 300]
+
+
+image_size = [300, 300, 3]
 # The anchor box scaling factors used in the original SSD300 for the Pascal VOC datasets
 scales = [0.1, 0.2, 0.37, 0.54, 0.71, 0.88, 1.05]
 
@@ -156,8 +85,8 @@ ssd_vgg16_aspect_ratios = [
                            [1., 2., 1/2, 1.]
                            ]
 feature_map_sizes = [[38, 38], [19, 19], [10, 10], [5, 5], [3, 3], [1, 1]]
-anchor_generator = MultiScaleAnchorGenerator(image_size=image_size, scales=ssd_vgg16_scales, aspect_ratios=ssd_vgg16_aspect_ratios)
-anchors = anchor_generator(feature_map_sizes)
+anchor_generator = MultiScaleAnchorGenerator(scales=ssd_vgg16_scales, aspect_ratios=ssd_vgg16_aspect_ratios)
+anchors = anchor_generator(image_size, feature_map_sizes)
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
@@ -181,7 +110,7 @@ def flatten_and_preprocess(features):
     gt_labels = features['objects']['label']
     image = photometric_transform(image)
     image, gt_boxes = random_flip_horizontal(image, gt_boxes, normalized=True)
-    image = tf.cast(image - mean_color, tf.float32)
+    image = tf.keras.applications.resnet.preprocess_input(image)
     image = tf.image.resize(image, [300, 300])
     # reserve 0 for background label
     gt_labels = gt_labels + 1

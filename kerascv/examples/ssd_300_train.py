@@ -135,7 +135,7 @@ def build_ssd_vgg16_head(ssd_vgg16_fpn, n_classes=21):
     return bbox_loc, bbox_softmax
 
 
-image_size = [300, 300]
+image_size = [300, 300, 3]
 # The anchor box scaling factors used in the original SSD300 for the Pascal VOC datasets
 scales = [0.1, 0.2, 0.37, 0.54, 0.71, 0.88, 1.05]
 
@@ -156,8 +156,8 @@ ssd_vgg16_aspect_ratios = [
                            [1., 2., 1/2, 1.]
                            ]
 feature_map_sizes = [[38, 38], [19, 19], [10, 10], [5, 5], [3, 3], [1, 1]]
-anchor_generator = MultiScaleAnchorGenerator(image_size=image_size, scales=ssd_vgg16_scales, aspect_ratios=ssd_vgg16_aspect_ratios)
-anchors = anchor_generator(feature_map_sizes)
+anchor_generator = MultiScaleAnchorGenerator(scales=ssd_vgg16_scales, aspect_ratios=ssd_vgg16_aspect_ratios)
+anchors = anchor_generator(image_size, feature_map_sizes)
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
@@ -206,7 +206,7 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
 
 def lr_scheduler(epoch, lr):
     # decay learning rate at epoch 80 and 100
-    if epoch == 160 or epoch == 200:
+    if epoch == 80 or epoch == 100:
         return 0.1 * lr
     else:
         return lr
@@ -217,7 +217,7 @@ def train_eval_save():
     voc_ds_2012 = tfds.load('voc/2012')
 
     train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2007['validation']).concatenate(voc_ds_2012['train']).concatenate(voc_ds_2012['validation'])
-    train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
+    train_voc_ds = train_voc_ds.shuffle(buffer_size=250)
     encoded_voc_train_ds = train_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32)
 
     test_voc_ds = voc_ds_2007['validation'].concatenate(voc_ds_2012['validation'])
@@ -243,13 +243,13 @@ def train_eval_save():
 
     learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
         schedule=lr_scheduler, verbose=1)
-    optimizer = tfa.optimizers.AdamW(weight_decay=0.0005, learning_rate=0.001)
+    optimizer = tfa.optimizers.SGDW(weight_decay=0.0005, learning_rate=0.001)
     train_model.compile(optimizer)
     ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='./ssd_weights/my_ssd.{epoch:02d}-{val_loss:.2f}.hdf5',
                                                        save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_voc_train_ds.prefetch(1000), epochs=350,
+    train_model.fit(encoded_voc_train_ds.prefetch(1000), epochs=120,
                     callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_voc_test_ds)
 
 

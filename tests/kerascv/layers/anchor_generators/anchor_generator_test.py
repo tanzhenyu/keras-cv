@@ -18,13 +18,12 @@ from kerascv.layers.anchor_generators import anchor_generator
 
 def test_single_scale_absolute_coordinate():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2],
         aspect_ratios=[1.0],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen(image_size=(300, 300), feature_map_size=(2, 2))
     expected_out = np.asarray(
         [
             [45, 45, 105, 105],
@@ -38,13 +37,12 @@ def test_single_scale_absolute_coordinate():
 
 def test_single_scale_non_square_image():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 200),
         scales=[0.2],
         aspect_ratios=[1.0],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 200), (2, 2))
     expected_out = np.asarray(
         [[30, 30, 70, 70], [30, 130, 70, 170], [130, 30, 170, 70], [130, 130, 170, 170]]
     ).astype(np.float32)
@@ -53,13 +51,12 @@ def test_single_scale_non_square_image():
 
 def test_single_scale_normalized_coordinate():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2],
         aspect_ratios=[1.0],
         clip_boxes=False,
         normalize_coordinates=True,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [
             [0.15, 0.15, 0.35, 0.35],
@@ -73,14 +70,13 @@ def test_single_scale_normalized_coordinate():
 
 def test_single_scale_customized_stride():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2],
         aspect_ratios=[1.0],
         stride=[100, 100],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     # The center of absolute anchor points would be [50, 50], [50, 150], [150, 50] and [150, 150]
     expected_out = np.asarray(
         [[20, 20, 80, 80], [20, 120, 80, 180], [120, 20, 180, 80], [120, 120, 180, 180]]
@@ -90,14 +86,13 @@ def test_single_scale_customized_stride():
 
 def test_single_scale_customized_offset():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2],
         aspect_ratios=[1.0],
         offset=[0.3, 0.3],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     # The first center of absolute anchor points would be 300 / 2 * 0.3 = 45, the second would be 45 + 150 = 195
     expected_out = np.asarray(
         [[15, 15, 75, 75], [15, 165, 75, 225], [165, 15, 225, 75], [165, 165, 225, 225]]
@@ -107,13 +102,12 @@ def test_single_scale_customized_offset():
 
 def test_over_scale_absolute_coordinate_no_clip():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.7],
         aspect_ratios=[1.0],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [
             [-30, -30, 180, 180],
@@ -127,13 +121,12 @@ def test_over_scale_absolute_coordinate_no_clip():
 
 def test_over_scale_absolute_coordinate_clip():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.7],
         aspect_ratios=[1.0],
         clip_boxes=True,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [[0, 0, 180, 180], [0, 120, 180, 300], [120, 0, 300, 180], [120, 120, 300, 300]]
     ).astype(np.float32)
@@ -142,13 +135,12 @@ def test_over_scale_absolute_coordinate_clip():
 
 def test_over_scale_normalized_coordinate_no_clip():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.7],
         aspect_ratios=[1.0],
         clip_boxes=False,
         normalize_coordinates=True,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [
             [-0.1, -0.1, 0.6, 0.6],
@@ -162,13 +154,12 @@ def test_over_scale_normalized_coordinate_no_clip():
 
 def test_over_scale_normalized_coordinate_clip():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.7],
         aspect_ratios=[1.0],
         clip_boxes=True,
         normalize_coordinates=True,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [
             [0.0, 0.0, 0.6, 0.6],
@@ -182,13 +173,12 @@ def test_over_scale_normalized_coordinate_clip():
 
 def test_multi_aspect_ratios():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2, 0.2],
         aspect_ratios=[0.64, 1.0],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     # height is 300 * 0.2 / 0.8 = 75; width is 300 * 0.2 * 0.8 = 48
     expected_out = np.asarray(
         [
@@ -207,13 +197,12 @@ def test_multi_aspect_ratios():
 
 def test_multi_scales():
     anchor_gen = anchor_generator.AnchorGenerator(
-        image_size=(300, 300),
         scales=[0.2, 0.5],
         aspect_ratios=[1.0, 1.0],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen((2, 2))
+    anchor_out = anchor_gen((300, 300), (2, 2))
     expected_out = np.asarray(
         [
             [45.0, 45.0, 105.0, 105.0],

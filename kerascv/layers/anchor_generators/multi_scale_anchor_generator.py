@@ -49,7 +49,6 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
 
     def __init__(
         self,
-        image_size,
         scales,
         aspect_ratios,
         strides=None,
@@ -59,9 +58,6 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
         name=None,
         **kwargs
     ):
-        self.image_size = image_size
-        self.image_height = image_size[0]
-        self.image_width = image_size[1]
         self.scales = scales
         self.aspect_ratios = aspect_ratios
         if strides is None:
@@ -78,7 +74,6 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
         ):
             self.anchor_generators.append(
                 AnchorGenerator(
-                    image_size,
                     scales=scale_list,
                     aspect_ratios=aspect_ratio_list,
                     stride=stride,
@@ -90,19 +85,18 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
             )
         super(MultiScaleAnchorGenerator, self).__init__(name=name, **kwargs)
 
-    def call(self, feature_map_sizes):
+    def call(self, image_size, feature_map_sizes):
         result = []
         for feature_map_size, anchor_generator in zip(
             feature_map_sizes, self.anchor_generators
         ):
-            anchors = anchor_generator(feature_map_size)
+            anchors = anchor_generator(image_size, feature_map_size)
             anchors = tf.reshape(anchors, (-1, 4))
             result.append(anchors)
         return tf.concat(result, axis=0)
 
     def get_config(self):
         config = {
-            "image_size": self.image_size,
             "scales": self.scales,
             "aspect_ratios": self.aspect_ratios,
             "strides": self.strides,

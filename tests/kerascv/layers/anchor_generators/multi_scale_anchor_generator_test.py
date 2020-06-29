@@ -18,13 +18,12 @@ from kerascv.layers.anchor_generators import multi_scale_anchor_generator
 
 def test_single_feature_map_absolute_coordinate():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.2]],
         aspect_ratios=[[1.0]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(2, 2)])
+    anchor_out = anchor_gen((300, 300), [(2, 2)])
     expected_out = np.asarray(
         [
             [45, 45, 105, 105],
@@ -38,13 +37,12 @@ def test_single_feature_map_absolute_coordinate():
 
 def test_single_feature_map_multi_aspect_ratios():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.2, 0.2]],
         aspect_ratios=[[0.64, 1.0]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(2, 2)])
+    anchor_out = anchor_gen((300, 300), [(2, 2)])
     # height is 300 * 0.2 / 0.8 = 75; width is 300 * 0.2 * 0.8 = 48
     expected_out = np.asarray(
         [
@@ -63,13 +61,12 @@ def test_single_feature_map_multi_aspect_ratios():
 
 def test_multi_feature_maps_absolute_coordinate():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.1], [0.2]],
         aspect_ratios=[[1.0], [1.0]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(3, 3), (2, 2)])
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
     # The first height and width is 30, the second height and width is 60.
     expected_out = np.asarray(
         [
@@ -93,14 +90,13 @@ def test_multi_feature_maps_absolute_coordinate():
 
 def test_multi_feature_maps_customized_stride():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.1], [0.2]],
         aspect_ratios=[[1.0], [1.0]],
         strides=[[120, 120], [160, 160]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(3, 3), (2, 2)])
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
     # The first center of anchor point for the first feature map is 120 * 0.5 = 60, then 180
     # The first center of anchor point for the second feature map is 160 * 0.5 = 80, then 240
     expected_out = np.asarray(
@@ -125,14 +121,13 @@ def test_multi_feature_maps_customized_stride():
 
 def test_multi_feature_maps_customized_offset():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.1], [0.2]],
         aspect_ratios=[[1.0], [1.0]],
         offsets=[[0.2, 0.2], [0.3, 0.3]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(3, 3), (2, 2)])
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
     # The first center of anchor point for the first feature map is 100 * 0.2 = 20, then 120
     # The first center of anchor point for the second feature map is 150 * 0.3 = 45, then 195
     expected_out = np.asarray(
@@ -157,13 +152,12 @@ def test_multi_feature_maps_customized_offset():
 
 def test_multi_feature_maps_over_scale_absolute_coordinate_no_clip():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.1], [0.7]],
         aspect_ratios=[[1.0], [1.0]],
         clip_boxes=False,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(3, 3), (2, 2)])
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
     # The first height and width is 30, the second height and width is 60.
     expected_out = np.asarray(
         [
@@ -187,13 +181,12 @@ def test_multi_feature_maps_over_scale_absolute_coordinate_no_clip():
 
 def test_multi_feature_maps_over_scale_absolute_coordinate_clip():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        image_size=(300, 300),
         scales=[[0.1], [0.7]],
         aspect_ratios=[[1.0], [1.0]],
         clip_boxes=True,
         normalize_coordinates=False,
     )
-    anchor_out = anchor_gen([(3, 3), (2, 2)])
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
     # The first height and width is 30, the second height and width is 60.
     expected_out = np.asarray(
         [
@@ -217,7 +210,7 @@ def test_multi_feature_maps_over_scale_absolute_coordinate_clip():
 
 def test_config_with_custom_name():
     layer = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        (300, 300), [[1.0]], [[1.0]], name="multi_anchor_generator"
+        [[1.0]], [[1.0]], name="multi_anchor_generator"
     )
     config = layer.get_config()
     layer_1 = multi_scale_anchor_generator.MultiScaleAnchorGenerator.from_config(config)
