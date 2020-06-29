@@ -26,16 +26,16 @@ class AnchorGenerator(tf.keras.layers.Layer):
             **Must** have the same length as `scales`. For example, if `image_size=(300, 200)`, `scales=[.1]`,
             and `aspect_ratios=[.64]`, the base anchor size is 20, then anchor height is 25 and anchor width is 16.
             The anchor aspect ratio is independent to the original aspect ratio of image size.
-        anchor_dimensions: A single int, or a list/tuple of ints. It represents the anchor dimension. If not None,
-            the `scales` are fraction of anchor_dimensions instead of fraction of `image_size`.
-        stride: A list/tuple of 2 ints or floats representing the distance between anchor points.
-            For example, `stride=(30, 40)` means each anchor is separated by 30 pixels in height, and
+        dimension: A single int, or a list/tuple of ints. It represents the anchor dimension. If not None,
+            the `scales` are fraction of dimension instead of fraction of `image_size`.
+        stride: A single int or float, or a list/tuple of 2 ints or floats representing the distance between anchor
+            points. For example, `stride=(30, 40)` means each anchor is separated by 30 pixels in height, and
             40 pixels in width. Defaults to `None`, where anchor stride would be calculated as
             `min(image_height, image_width) / feature_map_height` and
             `min(image_height, image_width) / feature_map_width`.
-        offset: A list/tuple of 2 floats between [0., 1.] representing the center of anchor points relative to
-            the upper-left border of each feature map cell. Defaults to `None`, which is the center of each
-            feature map cell when `stride=None`, or center of anchor stride otherwise.
+        offset: A single int or float, or a list/tuple of 2 floats between [0., 1.] representing the center of anchor
+            points relative to the upper-left border of each feature map cell. Defaults to `None`, which is the center
+            of each feature map cell when `stride=None`, or center of anchor stride otherwise.
         clip_boxes: Boolean to represents whether the anchor coordinates should be clipped to the image size.
             Defaults to `True`.
         normalize_coordinates: Boolean to represents whether the anchor coordinates should be normalized to [0., 1.]
@@ -47,7 +47,7 @@ class AnchorGenerator(tf.keras.layers.Layer):
         self,
         scales,
         aspect_ratios,
-        anchor_dimensions=None,
+        dimension=None,
         stride=None,
         offset=None,
         clip_boxes=True,
@@ -58,23 +58,33 @@ class AnchorGenerator(tf.keras.layers.Layer):
         """Constructs a AnchorGenerator."""
 
         self.scales = scales
-        self.anchor_dimensions = anchor_dimensions
+        self.dimension = dimension
         # whether use ratio with image size, or areas.
-        self.scales_on_image = (anchor_dimensions is None)
+        self.scales_on_image = (dimension is None)
         self.aspect_ratios = aspect_ratios
-        self.stride = stride
-        self.offset = offset
+        if isinstance(stride, (int, float)):
+            self.stride = [stride, stride]
+        else:
+            self.stride = stride
+        if isinstance(offset, (int, float)):
+            self.offset = [offset, offset]
+        else:
+            self.offset = offset
         self.clip_boxes = clip_boxes
         self.normalize_coordinates = normalize_coordinates
         super(AnchorGenerator, self).__init__(name=name, **kwargs)
 
-    def call(self, image_size, feature_map_size):
-        feature_map_height = tf.cast(feature_map_size[0], dtype=tf.float32)
-        feature_map_width = tf.cast(feature_map_size[1], dtype=tf.float32)
+    def call(self, image_size, feature_map_size=None):
         image_height = tf.cast(image_size[0], dtype=tf.float32)
         image_width = tf.cast(image_size[1], dtype=tf.float32)
-
         min_image_size = tf.minimum(image_width, image_height)
+
+        if feature_map_size is None:
+            feature_map_height = tf.math.floor(image_height / tf.cast(self.stride[0], tf.float32))
+            feature_map_width = tf.math.floor(image_width / tf.cast(self.stride[1], tf.float32))
+        else:
+            feature_map_height = tf.cast(feature_map_size[0], dtype=tf.float32)
+            feature_map_width = tf.cast(feature_map_size[1], dtype=tf.float32)
 
         if self.stride is None:
             stride_height = tf.cast(
@@ -98,7 +108,7 @@ class AnchorGenerator(tf.keras.layers.Layer):
         if self.scales_on_image:
             anchor_dimension = min_image_size
         else:
-            anchor_dimension = tf.cast(self.anchor_dimensions, tf.float32)
+            anchor_dimension = tf.cast(self.dimension, tf.float32)
         # [1, 1, K]
         anchor_heights = tf.reshape(
             (scales / aspect_ratios_sqrt) * anchor_dimension, (1, 1, -1)
@@ -171,7 +181,7 @@ class AnchorGenerator(tf.keras.layers.Layer):
         config = {
             "scales": self.scales,
             "aspect_ratios": self.aspect_ratios,
-            "anchor_dimensions": self.anchor_dimensions,
+            "dimension": self.dimension,
             "stride": self.stride,
             "offset": self.offset,
             "clip_boxes": self.clip_boxes,

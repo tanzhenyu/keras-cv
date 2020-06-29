@@ -130,27 +130,19 @@ class RetinaNet(Model):
 # At each pyramid level we use anchors at 3 aspect ratios {1:2, 1:1, 2:1}
 # For denser scale coverage than FPN, at each level add anchors of sizes {2^0, 2^1/3, 2^2/3}
 # The anchor box scales used in the original Retina ResNet50 for the COCO dataset.
-scales = [32, 64, 128, 256, 512]
+# The anchors have areas of 32^2, 64^2, 128^2, 256^2, 521^2 on pyramid levels P3 to P7, respectively.
+scales = [1, 2 ** (1/3), 2 ** (2/3)]
+aspect_ratios = [0.5, 1.0, 2.0]
+anchor_dimensions = [32, 64, 128, 256, 512]
+anchor_strides = [2 ** 3, 2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7]
 
-ssd_vgg16_scales = [
-                    [scales[0], scales[0], scales[0], np.sqrt(scales[0] * scales[1])],
-                    [scales[1], scales[1], scales[1], scales[1], scales[1], np.sqrt(scales[1] * scales[2])],
-                    [scales[2], scales[2], scales[2], scales[2], scales[2], np.sqrt(scales[2] * scales[3])],
-                    [scales[3], scales[3], scales[3], scales[3], scales[3], np.sqrt(scales[3] * scales[4])],
-                    [scales[4], scales[4], scales[4], np.sqrt(scales[4] * scales[5])],
-                    [scales[5], scales[5], scales[5], np.sqrt(scales[5] * scales[6])],
-                    ]
-ssd_vgg16_aspect_ratios = [
-                           [1., 2., 1/2, 1.],
-                           [1., 2., 3., 1/2, 1/3, 1.],
-                           [1., 2., 3., 1/2, 1/3, 1.],
-                           [1., 2., 3., 1/2, 1/3, 1.],
-                           [1., 2., 1/2, 1.],
-                           [1., 2., 1/2, 1.]
-                           ]
-feature_map_sizes = [[38, 38], [19, 19], [10, 10], [5, 5], [3, 3], [1, 1]]
-anchor_generator = MultiScaleAnchorGenerator(scales=ssd_vgg16_scales, aspect_ratios=ssd_vgg16_aspect_ratios)
-anchors = anchor_generator(image_size, feature_map_sizes)
+retina_resnet_scales = [scales] * 5
+retina_resnet_aspect_ratios = [aspect_ratios] * 5
+
+anchor_generator = MultiScaleAnchorGenerator(
+    scales=retina_resnet_scales, aspect_ratios=retina_resnet_aspect_ratios, anchor_dimensions=anchor_dimensions,
+    anchor_strides=anchor_strides
+)
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
@@ -184,7 +176,10 @@ def flatten_and_preprocess(features):
 
 
 def assigned_gt_fn(image, gt_boxes, gt_labels):
-    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(gt_boxes, gt_labels, anchors, negative_iou_threshold=0.4)
+    image_size = tf.shape(image)
+    anchors = anchor_generator()
+    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(
+        gt_boxes, gt_labels, anchors, positive_iou_threshold=0.5, negative_iou_threshold=0.4)
     encoded_matched_gt_boxes = box_encoder(matched_gt_boxes, anchors)
     matched_gt_labels = tf.squeeze(matched_gt_labels, axis=-1)
     return {'image': image, 'matched_gt_boxes': encoded_matched_gt_boxes, 'matched_gt_labels': matched_gt_labels,

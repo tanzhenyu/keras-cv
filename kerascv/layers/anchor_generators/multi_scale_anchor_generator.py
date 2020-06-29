@@ -55,7 +55,7 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
         self,
         scales,
         aspect_ratios,
-        anchor_dimensions=None,
+        dimensions=None,
         strides=None,
         offsets=None,
         clip_boxes=True,
@@ -65,26 +65,26 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
     ):
         self.scales = scales
         self.aspect_ratios = aspect_ratios
-        if anchor_dimensions is None:
-            anchor_dimensions = [None] * len(scales)
+        if dimensions is None:
+            dimensions = [None] * len(scales)
         if strides is None:
             strides = [None] * len(scales)
         if offsets is None:
             offsets = [None] * len(scales)
-        self.anchor_dimensions = anchor_dimensions
+        self.dimensions = dimensions
         self.strides = strides
         self.offsets = offsets
         self.clip_boxes = clip_boxes
         self.normalize_coordinates = normalize_coordinates
         self.anchor_generators = []
-        for (i, (scale_list, aspect_ratio_list, anchor_dimension, stride, offset)) in enumerate(
-            zip(scales, aspect_ratios, anchor_dimensions, strides, offsets)
+        for (i, (scale_list, aspect_ratio_list, dimension, stride, offset)) in enumerate(
+            zip(scales, aspect_ratios, dimensions, strides, offsets)
         ):
             self.anchor_generators.append(
                 AnchorGenerator(
                     scales=scale_list,
                     aspect_ratios=aspect_ratio_list,
-                    anchor_dimensions=anchor_dimension,
+                    dimension=dimension,
                     stride=stride,
                     offset=offset,
                     clip_boxes=clip_boxes,

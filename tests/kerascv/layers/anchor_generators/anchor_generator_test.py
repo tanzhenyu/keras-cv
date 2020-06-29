@@ -39,17 +39,38 @@ def test_single_scale_absolute_coordinate_anchor_dimension():
     anchor_gen = anchor_generator.AnchorGenerator(
         scales=[0.2],
         aspect_ratios=[1.0],
-        anchor_dimensions=300,
+        dimension=200,
         clip_boxes=False,
         normalize_coordinates=False,
     )
     anchor_out = anchor_gen(image_size=(300, 300), feature_map_size=(2, 2))
     expected_out = np.asarray(
         [
-            [45, 45, 105, 105],
-            [45, 195, 105, 255],
-            [195, 45, 255, 105],
-            [195, 195, 255, 255],
+            [55, 55, 95, 95],
+            [55, 205, 95, 245],
+            [205, 55, 245, 95],
+            [205, 205, 245, 245],
+        ]
+    ).astype(np.float32)
+    np.testing.assert_allclose(expected_out, anchor_out)
+
+
+def test_single_scale_absolute_coordinate_anchor_stride():
+    anchor_gen = anchor_generator.AnchorGenerator(
+        scales=[0.2],
+        aspect_ratios=[1.0],
+        stride=2**6,
+        clip_boxes=False,
+        normalize_coordinates=False,
+    )
+    anchor_out = anchor_gen(image_size=(128, 128))
+    expected_out = np.asarray(
+        [
+            # 32 - 12.8, 32 + 12.8, 96 - 12.8, 96 + 12.8
+            [19.2, 19.2, 44.8, 44.8],
+            [19.2, 83.2, 44.8, 108.8],
+            [83.2, 19.2, 108.8, 44.8],
+            [83.2, 83.2, 108.8, 108.8],
         ]
     ).astype(np.float32)
     np.testing.assert_allclose(expected_out, anchor_out)
@@ -238,11 +259,11 @@ def test_multi_scales():
     np.testing.assert_allclose(expected_out, anchor_out)
 
 
-def test_multi_scales_with_anchor_dimensions():
+def test_multi_scales_with_dimension():
     anchor_gen = anchor_generator.AnchorGenerator(
         scales=[0.2, 0.5],
         aspect_ratios=[1.0, 1.0],
-        anchor_dimensions=[300, 300],
+        dimension=[300, 300],
         clip_boxes=False,
         normalize_coordinates=False,
     )
