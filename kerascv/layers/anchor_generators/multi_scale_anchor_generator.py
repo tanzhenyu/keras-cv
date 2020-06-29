@@ -20,11 +20,12 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
     """Defines a MultiScaleAnchorGenerator that generates anchor boxes for multiple feature maps.
 
         # Attributes:
-            image_size: A list/tuple of 2 ints, the 1st represents the image height, the 2nd image width.
             scales: A list/tuple of list/tuple of positive floats (usually less than 1.) as a fraction to shorter
                 side of `image_size`. It represents the base anchor size (when aspect ratio is 1.).
                 For example, if `image_size=(300, 200)`, and `scales=[[.1]]`, then the base anchor size is 20.
                 If `image_size=(300, 200)` and `scales=[[.1], [.2]]`, then the base anchor sizes are 20 and 40.
+                It can also be a list/tuple of list/tuple of positive ints so the anchor area does not change for
+                different image size.
             aspect_ratios: a list/tuple of list/tuple of positive floats representing the ratio of anchor width
                 to anchor height. **Must** have the same length as `scales`.
                 For example, if `image_size=(300, 200)`, `scales=[[.1]]`, and `aspect_ratios=[[.64]]`, the base anchor

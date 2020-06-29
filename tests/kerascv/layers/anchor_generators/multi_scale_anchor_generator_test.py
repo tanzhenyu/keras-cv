@@ -88,6 +88,35 @@ def test_multi_feature_maps_absolute_coordinate():
     np.testing.assert_allclose(expected_out, anchor_out)
 
 
+def test_multi_feature_maps_absolute_coordinate_direct_scale():
+    anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
+        scales=[[30], [60]],
+        aspect_ratios=[[1.0], [1.0]],
+        clip_boxes=False,
+        normalize_coordinates=False,
+    )
+    anchor_out = anchor_gen((300, 300), [(3, 3), (2, 2)])
+    # The first height and width is 30, the second height and width is 60.
+    expected_out = np.asarray(
+        [
+            [35.0, 35.0, 65.0, 65.0],
+            [35.0, 135.0, 65.0, 165.0],
+            [35.0, 235.0, 65.0, 265.0],
+            [135.0, 35.0, 165.0, 65.0],
+            [135.0, 135.0, 165.0, 165.0],
+            [135.0, 235.0, 165.0, 265.0],
+            [235.0, 35.0, 265.0, 65.0],
+            [235.0, 135.0, 265.0, 165.0],
+            [235.0, 235.0, 265.0, 265.0],
+            [45.0, 45.0, 105.0, 105.0],
+            [45.0, 195.0, 105.0, 255.0],
+            [195.0, 45.0, 255.0, 105.0],
+            [195.0, 195.0, 255.0, 255.0],
+        ]
+    ).astype(np.float32)
+    np.testing.assert_allclose(expected_out, anchor_out)
+
+
 def test_multi_feature_maps_customized_stride():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
         scales=[[0.1], [0.2]],

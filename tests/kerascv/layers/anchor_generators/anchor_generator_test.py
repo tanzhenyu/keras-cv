@@ -35,6 +35,25 @@ def test_single_scale_absolute_coordinate():
     np.testing.assert_allclose(expected_out, anchor_out)
 
 
+def test_single_scale_absolute_coordinate_direct_scale():
+    anchor_gen = anchor_generator.AnchorGenerator(
+        scales=[60],
+        aspect_ratios=[1.0],
+        clip_boxes=False,
+        normalize_coordinates=False,
+    )
+    anchor_out = anchor_gen(image_size=(300, 300), feature_map_size=(2, 2))
+    expected_out = np.asarray(
+        [
+            [45, 45, 105, 105],
+            [45, 195, 105, 255],
+            [195, 45, 255, 105],
+            [195, 195, 255, 255],
+        ]
+    ).astype(np.float32)
+    np.testing.assert_allclose(expected_out, anchor_out)
+
+
 def test_single_scale_non_square_image():
     anchor_gen = anchor_generator.AnchorGenerator(
         scales=[0.2],

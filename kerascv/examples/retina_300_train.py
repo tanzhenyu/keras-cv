@@ -22,8 +22,8 @@ Input = tf.keras.Input
 Model = tf.keras.Model
 
 
-def build_retina_resnet_fpn(input_shape):
-    inputs = layers.Input(shape=input_shape)
+def build_retina_resnet_fpn():
+    inputs = layers.Input(shape=[None, None, 3])
     backbone = tf.keras.applications.ResNet50(include_top=False, weights='imagenet', input_tensor=inputs)
     up_sampler = layers.UpSampling2D(2)
     C3, C4, C5 = [
@@ -35,36 +35,101 @@ def build_retina_resnet_fpn(input_shape):
     P3 = Conv2D(256, 1, 1, "same", name="fpn_conv_p3_1")(C3)
     P4 = Conv2D(256, 1, 1, "same", name="fpn_conv_p4_1")(C4)
     P5 = Conv2D(256, 1, 1, "same", name="fpn_conv_p5_1")(C5)
+    # The upsampled map is merged with the bottom-up map, which undergoes a 1x1 conv layer to reduce
+    # channel dimensions by element-wise addition.
     P4 = P4 + up_sampler(P5)
     P3 = P3 + up_sampler(P4)
+    # Append a 3x3 conv on each merged map to generate the final feature map, which is to reduce
+    # the aliasing effect of upsampling.
     P3 = Conv2D(256, 3, 1, "same", name="fpn_conv_p3_3")(P3)
     P4 = Conv2D(256, 3, 1, "same", name="fpn_conv_p4_3")(P4)
+    P5 = Conv2D(256, 3, 1, "same", name="fpn_conv_p5_3")(P5)
+    # Don't use the high-resolution pyramid level P2
+    # for computational reasons.
     feature_maps.append(P3)
     feature_maps.append(P4)
-    P5 = Conv2D(256, 3, 1, "same", name="fpn_conv_p5_3")(P5)
     feature_maps.append(P5)
+    # P6 is obtained via a 3x3 stride-2 conv on C5
     P6 = Conv2D(256, 3, 2, "same", name="fpn_conv_p6_3")(C5)
     feature_maps.append(P6)
+    # P7 is computed by applying Relu followed by a 3x3 stride-2 conv on P6.
     P7 = Conv2D(256, 3, 2, "same", name="fpn_conv_p7_3")(tf.nn.relu(P6))
     feature_maps.append(P7)
+    # The final set of feature maps is {P3, P4, P5, P6, P7}.
     model = Model(inputs=inputs, outputs=feature_maps)
     return model
 
-def build_retina_resnet_head(retina_resnet_fpn, n_classes=80):
-    feature_maps = retina_resnet_fpn.outputs
-    prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
-    kernel_init = tf.keras.initializers.RandomNormal(0.0, 0.01)
-    def _build_head(input, output_filters, bias_init):
-        x = input
+
+class RetinaNetHead(layers.Layer):
+    def __init__(self, num_anchors, output_size, bias_init, name="RetinaHead", **kwargs):
+        # All new conv layers are initialized with a Gaussian weight with sigma = 0.01.
+        kernel_init = tf.keras.initializers.RandomNormal(0.0, 0.01)
+        self.bias_init = bias_init
+        self.num_anchors = num_anchors
+        self.output_size = output_size
+        super(RetinaNetHead, self).__init__(name=name, **kwargs)
+        # Parameters of head are shared across all pyramid levels. Take an input feature map with C channels,
+        # the head applies four 3x3 conv layers, each with C filters and followed by Relu, finally followed
+        # by a 3x3 conv layer with K*A or 4A filters. Use C=256 and A=9 in ResNet50.
+        heads = []
         for _ in range(4):
-            x = Conv2D(256, 3, padding="same", kernel_initializer=kernel_init, activation='relu')(x)
-        x = Conv2D(output_filters, 3, 1, padding="same", kernel_initializer=kernel_init, bias_initializer=bias_init)(x)
-        return x
+            # All new conv layers except the final one are initialized with bias b = 0
+            heads.append(
+                Conv2D(256, 3, padding="same", kernel_initializer=kernel_init, activation='relu')
+            )
+        heads.append(
+            Conv2D(num_anchors * output_size, 3, 1, padding="same", kernel_initializer=kernel_init,
+                   bias_initializer=bias_init)
+        )
+        self.heads = heads
+
+    def call(self, inputs):
+        input_shape = tf.shape(inputs)
+        batch_size = input_shape[0]
+        height = input_shape[1]
+        width = input_shape[2]
+
+        output = inputs
+        for head in self.heads:
+            output = head(output)
+        return tf.reshape(output, [batch_size, height * width, self.output_size])
+
+    def get_config(self):
+        config = {
+            "num_anchors": self.num_anchors,
+            "output_size": self.output_size,
+            "bias_init": tf.keras.initializers.serialize(self.bias_init),
+        }
+        base_config = super(RetinaNetHead, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
 
+class RetinaNet(Model):
+    def __init__(self, n_classes=80, **kwargs):
+        super(RetinaNet, self).__init__(name="RetinaNet", **kwargs)
+        self.fpn = build_retina_resnet_fpn()
+        self.n_classes = n_classes
+        # The final conv layer of the cls subnet, b = -log(1- pi) / pi), where pi specifies that at start
+        # of training every anchor should be labeled as foreground with confidence of pi.
+        prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
+        self.box_heads = RetinaNetHead(9 * 4, "zeros")
+        self.cls_heads = RetinaNetHead(9 * n_classes, prior_init)
+
+    def call(self, image, training=True):
+        feature_maps = self.fpn(image, training=training)
+        box_preds = []
+        cls_preds = []
+        for feature_map in feature_maps:
+            box_preds.append(self.box_heads(feature_map))
+            cls_preds.append(self.cls_heads(feature_map))
+        box_pred = tf.concat(box_preds, axis=1)
+        cls_pred = tf.concat(cls_preds, axis=1)
+        return box_pred, cls_pred
 
 
 image_size = [300, 300, 3]
+# At each pyramid level we use anchors at 3 aspect ratios {1:2, 1:1, 2:1}
+# For denser scale coverage than FPN, at each level add anchors of sizes {2^0, 2^1/3, 2^2/3}
 # The anchor box scaling factors used in the original SSD300 for the Pascal VOC datasets
 scales = [0.1, 0.2, 0.37, 0.54, 0.71, 0.88, 1.05]
 
