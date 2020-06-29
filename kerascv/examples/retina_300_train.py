@@ -127,11 +127,10 @@ class RetinaNet(Model):
         return box_pred, cls_pred
 
 
-image_size = [300, 300, 3]
 # At each pyramid level we use anchors at 3 aspect ratios {1:2, 1:1, 2:1}
 # For denser scale coverage than FPN, at each level add anchors of sizes {2^0, 2^1/3, 2^2/3}
-# The anchor box scaling factors used in the original SSD300 for the Pascal VOC datasets
-scales = [0.1, 0.2, 0.37, 0.54, 0.71, 0.88, 1.05]
+# The anchor box scales used in the original Retina ResNet50 for the COCO dataset.
+scales = [32, 64, 128, 256, 512]
 
 ssd_vgg16_scales = [
                     [scales[0], scales[0], scales[0], np.sqrt(scales[0] * scales[1])],

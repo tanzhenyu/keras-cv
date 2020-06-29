@@ -90,8 +90,9 @@ def test_multi_feature_maps_absolute_coordinate():
 
 def test_multi_feature_maps_absolute_coordinate_direct_scale():
     anchor_gen = multi_scale_anchor_generator.MultiScaleAnchorGenerator(
-        scales=[[30], [60]],
+        scales=[[.1], [.2]],
         aspect_ratios=[[1.0], [1.0]],
+        anchor_dimensions=[300, 300],
         clip_boxes=False,
         normalize_coordinates=False,
     )

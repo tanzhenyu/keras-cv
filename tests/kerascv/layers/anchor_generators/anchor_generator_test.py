@@ -35,10 +35,11 @@ def test_single_scale_absolute_coordinate():
     np.testing.assert_allclose(expected_out, anchor_out)
 
 
-def test_single_scale_absolute_coordinate_direct_scale():
+def test_single_scale_absolute_coordinate_anchor_dimension():
     anchor_gen = anchor_generator.AnchorGenerator(
-        scales=[60],
+        scales=[0.2],
         aspect_ratios=[1.0],
+        anchor_dimensions=300,
         clip_boxes=False,
         normalize_coordinates=False,
     )
@@ -218,6 +219,30 @@ def test_multi_scales():
     anchor_gen = anchor_generator.AnchorGenerator(
         scales=[0.2, 0.5],
         aspect_ratios=[1.0, 1.0],
+        clip_boxes=False,
+        normalize_coordinates=False,
+    )
+    anchor_out = anchor_gen((300, 300), (2, 2))
+    expected_out = np.asarray(
+        [
+            [45.0, 45.0, 105.0, 105.0],
+            [0.0, 0.0, 150.0, 150.0],
+            [45.0, 195.0, 105.0, 255.0],
+            [0.0, 150.0, 150.0, 300.0],
+            [195.0, 45.0, 255.0, 105.0],
+            [150.0, 0.0, 300.0, 150.0],
+            [195.0, 195.0, 255.0, 255.0],
+            [150.0, 150.0, 300.0, 300.0],
+        ]
+    ).astype(np.float32)
+    np.testing.assert_allclose(expected_out, anchor_out)
+
+
+def test_multi_scales_with_anchor_dimensions():
+    anchor_gen = anchor_generator.AnchorGenerator(
+        scales=[0.2, 0.5],
+        aspect_ratios=[1.0, 1.0],
+        anchor_dimensions=[300, 300],
         clip_boxes=False,
         normalize_coordinates=False,
     )

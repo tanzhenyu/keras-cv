@@ -22,13 +22,12 @@ class AnchorGenerator(tf.keras.layers.Layer):
         scales: A list/tuple of positive floats (usually less than 1.) as a fraction to shorter side of `image_size`.
             It represents the base anchor size (when aspect ratio is 1.). For example, if `image_size` is (300, 200),
             and `scales=[.1]`, then the base anchor size is 20.
-            It can also be a list/tuple of positive ints so the anchor area does not change for different image size.
-            For example, setting `scales=[32]` means the anchor area will always be 32x32 when the image size is
-            (300, 300) or (224, 224).
         aspect_ratios: a list/tuple of positive floats representing the ratio of anchor width to anchor height.
             **Must** have the same length as `scales`. For example, if `image_size=(300, 200)`, `scales=[.1]`,
             and `aspect_ratios=[.64]`, the base anchor size is 20, then anchor height is 25 and anchor width is 16.
             The anchor aspect ratio is independent to the original aspect ratio of image size.
+        anchor_dimensions: A single int, or a list/tuple of ints. It represents the anchor dimension. If not None,
+            the `scales` are fraction of anchor_dimensions instead of fraction of `image_size`.
         stride: A list/tuple of 2 ints or floats representing the distance between anchor points.
             For example, `stride=(30, 40)` means each anchor is separated by 30 pixels in height, and
             40 pixels in width. Defaults to `None`, where anchor stride would be calculated as
@@ -48,6 +47,7 @@ class AnchorGenerator(tf.keras.layers.Layer):
         self,
         scales,
         aspect_ratios,
+        anchor_dimensions=None,
         stride=None,
         offset=None,
         clip_boxes=True,
@@ -58,10 +58,9 @@ class AnchorGenerator(tf.keras.layers.Layer):
         """Constructs a AnchorGenerator."""
 
         self.scales = scales
-        # whether use ratio with image size, or directly.
-        self.scales_ratio = True
-        if all([isinstance(scale, int) for scale in scales]):
-            self.scales_ratio = False
+        self.anchor_dimensions = anchor_dimensions
+        # whether use ratio with image size, or areas.
+        self.scales_on_image = (anchor_dimensions is None)
         self.aspect_ratios = aspect_ratios
         self.stride = stride
         self.offset = offset
@@ -96,21 +95,17 @@ class AnchorGenerator(tf.keras.layers.Layer):
         len_k = len(self.aspect_ratios)
         aspect_ratios_sqrt = tf.cast(tf.sqrt(self.aspect_ratios), tf.float32)
         scales = tf.cast(self.scales, dtype=tf.float32)
-        if self.scales_ratio:
-            # [1, 1, K]
-            anchor_heights = tf.reshape(
-                (scales / aspect_ratios_sqrt) * min_image_size, (1, 1, -1)
-            )
-            anchor_widths = tf.reshape(
-                (scales * aspect_ratios_sqrt) * min_image_size, (1, 1, -1)
-            )
+        if self.scales_on_image:
+            anchor_dimension = min_image_size
         else:
-            anchor_heights = tf.reshape(
-                (scales / aspect_ratios_sqrt), (1, 1, -1)
-            )
-            anchor_widths = tf.reshape(
-                (scales * aspect_ratios_sqrt), (1, 1, -1)
-            )
+            anchor_dimension = tf.cast(self.anchor_dimensions, tf.float32)
+        # [1, 1, K]
+        anchor_heights = tf.reshape(
+            (scales / aspect_ratios_sqrt) * anchor_dimension, (1, 1, -1)
+        )
+        anchor_widths = tf.reshape(
+            (scales * aspect_ratios_sqrt) * anchor_dimension, (1, 1, -1)
+        )
 
         # [W]
         cx = (tf.range(feature_map_width) + offset_width) * stride_width
@@ -176,6 +171,7 @@ class AnchorGenerator(tf.keras.layers.Layer):
         config = {
             "scales": self.scales,
             "aspect_ratios": self.aspect_ratios,
+            "anchor_dimensions": self.anchor_dimensions,
             "stride": self.stride,
             "offset": self.offset,
             "clip_boxes": self.clip_boxes,

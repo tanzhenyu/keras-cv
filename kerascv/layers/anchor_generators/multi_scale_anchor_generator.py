@@ -33,6 +33,9 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
                 `scales=[[.1], [.2]]`, and `aspect_ratios=[[.64], [.1]]`, the base anchor size is 20 and 40, then
                 the anchor heights are 25 and 40, the anchor widths are 16 and 40.
                 The anchor aspect ratio is independent to the original aspect ratio of image size.
+            anchor_dimensions: A list/tuple of ints, or a list/tuple of list/tuple of ints. It represents the anchor
+                dimension. If not None, the `scales` are fraction of anchor_dimensions instead of fraction of
+                `image_size`.
             strides: A list/tuple of list/tuple of 2 ints or floats representing the distance between anchor
                 points. For example, `stride=[(30, 40)]` means each anchor is separated by 30 pixels in height,
                 and 40 pixels in width. Defaults to `None`, where anchor stride would be calculated as
@@ -52,6 +55,7 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
         self,
         scales,
         aspect_ratios,
+        anchor_dimensions=None,
         strides=None,
         offsets=None,
         clip_boxes=True,
@@ -61,22 +65,26 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
     ):
         self.scales = scales
         self.aspect_ratios = aspect_ratios
+        if anchor_dimensions is None:
+            anchor_dimensions = [None] * len(scales)
         if strides is None:
             strides = [None] * len(scales)
         if offsets is None:
             offsets = [None] * len(scales)
+        self.anchor_dimensions = anchor_dimensions
         self.strides = strides
         self.offsets = offsets
         self.clip_boxes = clip_boxes
         self.normalize_coordinates = normalize_coordinates
         self.anchor_generators = []
-        for (i, (scale_list, aspect_ratio_list, stride, offset)) in enumerate(
-            zip(scales, aspect_ratios, strides, offsets)
+        for (i, (scale_list, aspect_ratio_list, anchor_dimension, stride, offset)) in enumerate(
+            zip(scales, aspect_ratios, anchor_dimensions, strides, offsets)
         ):
             self.anchor_generators.append(
                 AnchorGenerator(
                     scales=scale_list,
                     aspect_ratios=aspect_ratio_list,
+                    anchor_dimensions=anchor_dimension,
                     stride=stride,
                     offset=offset,
                     clip_boxes=clip_boxes,
