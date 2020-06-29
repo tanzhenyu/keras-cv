@@ -104,27 +104,24 @@ class RetinaNetHead(layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class RetinaNet(Model):
-    def __init__(self, n_classes=80, **kwargs):
-        super(RetinaNet, self).__init__(name="RetinaNet", **kwargs)
-        self.fpn = build_retina_resnet_fpn()
-        self.n_classes = n_classes
-        # The final conv layer of the cls subnet, b = -log(1- pi) / pi), where pi specifies that at start
-        # of training every anchor should be labeled as foreground with confidence of pi.
-        prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
-        self.box_heads = RetinaNetHead(9 * 4, "zeros")
-        self.cls_heads = RetinaNetHead(9 * n_classes, prior_init)
-
-    def call(self, image, training=True):
-        feature_maps = self.fpn(image, training=training)
-        box_preds = []
-        cls_preds = []
-        for feature_map in feature_maps:
-            box_preds.append(self.box_heads(feature_map))
-            cls_preds.append(self.cls_heads(feature_map))
-        box_pred = tf.concat(box_preds, axis=1)
-        cls_pred = tf.concat(cls_preds, axis=1)
-        return box_pred, cls_pred
+def build_retina_net(n_classes=80):
+    fpn = build_retina_resnet_fpn()
+    keras_inp = fpn.inputs
+    feature_maps = fpn.outputs
+    # The final conv layer of the cls subnet, b = -log(1- pi) / pi), where pi specifies that at start
+    # of training every anchor should be labeled as foreground with confidence of pi.
+    prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
+    box_heads = RetinaNetHead(9 * 4, "zeros")
+    cls_heads = RetinaNetHead(9 * n_classes, prior_init)
+    box_preds = []
+    cls_preds = []
+    for feature_map in feature_maps:
+        box_preds.append(box_heads(feature_map))
+        cls_preds.append(cls_heads(feature_map))
+    box_pred = tf.concat(box_preds, axis=1)
+    cls_pred = tf.concat(cls_preds, axis=1)
+    model = Model(keras_inp, [box_pred, cls_pred])
+    return model
 
 
 # At each pyramid level we use anchors at 3 aspect ratios {1:2, 1:1, 2:1}
@@ -157,6 +154,30 @@ voc_classes = ['background',
                'sheep', 'sofa', 'train', 'tvmonitor']
 
 
+def resize_and_pad(image):
+    min_side = tf.cast(800, tf.float32)
+    max_side = tf.cast(1333, tf.float32)
+    stride = tf.cast(128.0, tf.float32)
+    image_shape = tf.cast(tf.shape(image)[:2], tf.float32)
+    image_height = image_shape[0]
+    image_width = image_shape[1]
+    smaller_side = tf.minimum(image_height, image_width)
+    larger_side = tf.maximum(image_height, image_width)
+    scale = min_side / smaller_side
+    if tf.greater(larger_side * scale, max_side):
+        scale = max_side / larger_side
+    new_image_shape = scale * image_shape
+    image = tf.image.resize(image, tf.cast(new_image_shape, tf.int32))
+    padded_image_shape = tf.cast(
+        tf.math.ceil(new_image_shape / stride) * stride, dtype=tf.int32
+    )
+    # pad the image to top left of the canvas
+    image = tf.image.pad_to_bounding_box(
+        image, 0, 0, padded_image_shape[0], padded_image_shape[1]
+    )
+    return image
+
+
 def flatten_and_preprocess(features):
     # image in the range of [0, 255], tf.uint8
     image = features['image']
@@ -164,10 +185,9 @@ def flatten_and_preprocess(features):
     gt_boxes = features['objects']['bbox']
     # [num_gt_boxes]
     gt_labels = features['objects']['label']
-    image = photometric_transform(image)
     image, gt_boxes = random_flip_horizontal(image, gt_boxes, normalized=True)
     image = tf.keras.applications.resnet.preprocess_input(image)
-    image = tf.image.resize(image, [300, 300])
+    image = resize_and_pad(image)
     # reserve 0 for background label
     gt_labels = gt_labels + 1
     # expand dimension for future encoding
@@ -177,7 +197,9 @@ def flatten_and_preprocess(features):
 
 def assigned_gt_fn(image, gt_boxes, gt_labels):
     image_size = tf.shape(image)
-    anchors = anchor_generator()
+    anchors = anchor_generator(image_size)
+    # Anchors are assigned to ground truth boxes using an OU threshold of 0.5, and background if in [0, 0.4)
+    # Anchor with overlap in [0.4, 0.5) will be ignored during training.
     matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(
         gt_boxes, gt_labels, anchors, positive_iou_threshold=0.5, negative_iou_threshold=0.4)
     encoded_matched_gt_boxes = box_encoder(matched_gt_boxes, anchors)
@@ -207,16 +229,16 @@ def train_eval_save():
     test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
     encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(10)
 
-    retina_vgg16_fpn = build_retina_vgg16_fpn((300, 300, 3))
-    gt_loc_pred, gt_cls_pred = build_retina_vgg16_head(retina_vgg16_fpn)
-    gt_loc_input = Input((8732, 4), dtype=tf.float32, name='gt_loc_true')
-    gt_cls_input = Input((8732,), dtype=tf.int64, name='gt_cls_true')
-    positive_mask = Input((8732,), dtype=tf.float32, name='positive_mask')
-    negative_mask = Input((8732,), dtype=tf.float32, name='negative_mask')
+    retina_model = build_retina_net()
+    gt_loc_pred, gt_cls_pred = retina_model.outputs
+    gt_loc_input = Input((None, 4), dtype=tf.float32, name='gt_loc_true')
+    gt_cls_input = Input((None,), dtype=tf.int64, name='gt_cls_true')
+    positive_mask = Input((None,), dtype=tf.float32, name='positive_mask')
+    negative_mask = Input((None,), dtype=tf.float32, name='negative_mask')
     gt_final_loc_pred, gt_final_cls_pred = retina_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
                                                              positive_mask, negative_mask)
 
-    model_inputs = {'image': retina_vgg16_fpn.inputs[0],
+    model_inputs = {'image': retina_model.inputs[0],
                     'matched_gt_boxes': gt_loc_input,
                     'matched_gt_labels': gt_cls_input,
                     'positive_mask': positive_mask,
