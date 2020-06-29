@@ -1,7 +1,7 @@
 from kerascv.layers.anchor_generators.multi_scale_anchor_generator import MultiScaleAnchorGenerator
 from kerascv.layers.iou_similarity import IOUSimilarity
 from kerascv.layers.losses.retina_loss_layer import RetinaLossLayer
-from kerascv.layers.matchers.argmax_matcher import target_assign_argmax
+from kerascv.layers.matchers.greedy_bipartite import target_assign_tf_func
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
 from kerascv.examples.preprocessing.color_transforms import *
 from kerascv.examples.preprocessing.geometric_transforms import *
@@ -200,7 +200,7 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
     anchors = anchor_generator(image_size)
     # Anchors are assigned to ground truth boxes using an OU threshold of 0.5, and background if in [0, 0.4)
     # Anchor with overlap in [0.4, 0.5) will be ignored during training.
-    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(
+    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_tf_func(
         gt_boxes, gt_labels, anchors, positive_iou_threshold=0.5, negative_iou_threshold=0.4)
     encoded_matched_gt_boxes = box_encoder(matched_gt_boxes, anchors)
     matched_gt_labels = tf.squeeze(matched_gt_labels, axis=-1)
@@ -217,17 +217,14 @@ def lr_scheduler(epoch, lr):
 
 
 def train_eval_save():
-    voc_ds_2007 = tfds.load('voc/2007')
-    voc_ds_2012 = tfds.load('voc/2012')
+    coco_ds_2017 = tfds.load('coco/2017')
 
-    train_voc_ds = voc_ds_2007['train'].concatenate(voc_ds_2007['validation']).concatenate(
-        voc_ds_2012['train']).concatenate(voc_ds_2012['validation'])
-    train_voc_ds = train_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_train_ds = train_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32)
+    eval_coco_ds = coco_ds_2017['validation'].shuffle(buffer_size=250)
+    train_coco_ds = coco_ds_2017['train'].shuffle(buffer_size=250)
+    train_coco_ds = train_coco_ds.concatenate(eval_coco_ds)
+    encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32)
 
-    test_voc_ds = voc_ds_2007['validation'].concatenate(voc_ds_2012['validation'])
-    test_voc_ds = test_voc_ds.shuffle(buffer_size=100)
-    encoded_voc_test_ds = test_voc_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(10)
+    encoded_eval_coco_ds = eval_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(20)
 
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
@@ -257,8 +254,8 @@ def train_eval_save():
             save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_voc_train_ds.prefetch(1000), epochs=350,
-                    callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_voc_test_ds)
+    train_model.fit(encoded_train_coco_ds.prefetch(1000), epochs=350,
+                    callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_eval_coco_ds)
 
 
 if __name__ == "__main__":
