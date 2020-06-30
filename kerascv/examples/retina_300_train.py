@@ -111,8 +111,8 @@ def build_retina_net(n_classes=80):
     # The final conv layer of the cls subnet, b = -log(1- pi) / pi), where pi specifies that at start
     # of training every anchor should be labeled as foreground with confidence of pi.
     prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
-    box_heads = RetinaNetHead(9 * 4, "zeros")
-    cls_heads = RetinaNetHead(9 * n_classes, prior_init)
+    box_heads = RetinaNetHead(9, 4, "zeros")
+    cls_heads = RetinaNetHead(9, n_classes, prior_init)
     box_preds = []
     cls_preds = []
     for feature_map in feature_maps:
