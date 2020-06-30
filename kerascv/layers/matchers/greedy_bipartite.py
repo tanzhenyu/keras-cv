@@ -29,6 +29,9 @@ def _target_assign_func(
     matched_gt_labels = np.zeros((num_anchors, 1), dtype=np.int64)
     positive_mask = np.zeros(num_anchors, dtype=np.int)
     negative_mask = np.ones(num_anchors, dtype=np.int)
+    if ground_truth_boxes.size == 0:
+        print('No object found')
+        return matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask
 
     # keep a record of the best anchor index for each ground truth box
     matches = np.zeros(num_gt_boxes, dtype=np.int)

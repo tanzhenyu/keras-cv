@@ -23,7 +23,7 @@ Model = tf.keras.Model
 
 
 def build_retina_resnet_fpn():
-    inputs = layers.Input(shape=[None, None, 3])
+    inputs = layers.Input(shape=[896, 896, 3])
     backbone = tf.keras.applications.ResNet50(include_top=False, weights='imagenet', input_tensor=inputs)
     up_sampler = layers.UpSampling2D(2)
     C3, C4, C5 = [
@@ -92,7 +92,7 @@ class RetinaNetHead(layers.Layer):
         output = inputs
         for head in self.heads:
             output = head(output)
-        return tf.reshape(output, [batch_size, height * width, self.output_size])
+        return tf.reshape(output, [batch_size, height * width * self.num_anchors, self.output_size])
 
     def get_config(self):
         config = {
@@ -144,6 +144,7 @@ anchor_generator = MultiScaleAnchorGenerator(
     scales=retina_resnet_scales, aspect_ratios=retina_resnet_aspect_ratios, dimensions=anchor_dimensions,
     strides=anchor_strides
 )
+anchors = anchor_generator([896, 896, 3])
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
@@ -183,7 +184,8 @@ def flatten_and_preprocess(features):
     gt_labels = features['objects']['label']
     image, gt_boxes = random_flip_horizontal(image, gt_boxes, normalized=True)
     image = tf.keras.applications.resnet.preprocess_input(image)
-    image = resize_and_pad(image)
+    # image = resize_and_pad(image)
+    image = tf.image.resize(image, [896, 896])
     # reserve 0 for background label
     gt_labels = gt_labels + 1
     # expand dimension for future encoding
@@ -218,9 +220,9 @@ def train_eval_save():
     eval_coco_ds = coco_ds_2017['validation'].shuffle(buffer_size=250)
     train_coco_ds = coco_ds_2017['train'].shuffle(buffer_size=250)
     train_coco_ds = train_coco_ds.concatenate(eval_coco_ds)
-    encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32)
+    encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(2)
 
-    encoded_eval_coco_ds = eval_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(32).take(20)
+    encoded_eval_coco_ds = eval_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(2).take(100)
 
     retina_model = build_retina_net()
     gt_loc_pred, gt_cls_pred = retina_model.outputs
