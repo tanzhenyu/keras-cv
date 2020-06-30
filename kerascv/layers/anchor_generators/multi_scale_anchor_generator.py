@@ -99,7 +99,7 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
         if feature_map_sizes is None:
             for anchor_generator in self.anchor_generators:
                 anchors = anchor_generator(image_size, None)
-                anchors = tf.reshape(anchors, (-1, 5))
+                anchors = tf.reshape(anchors, (-1, 4))
                 result.append(anchors)
         else:
             for feature_map_size, anchor_generator in zip(
