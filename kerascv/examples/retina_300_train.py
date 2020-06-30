@@ -104,15 +104,19 @@ class RetinaNetHead(layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+# 80 classes plus background.
 def build_retina_net(n_classes=80):
     fpn = build_retina_resnet_fpn()
     keras_inp = fpn.inputs
     feature_maps = fpn.outputs
     # The final conv layer of the cls subnet, b = -log(1- pi) / pi), where pi specifies that at start
     # of training every anchor should be labeled as foreground with confidence of pi.
-    prior_init = tf.keras.initializers.Constant(-np.log((1 - 0.01) / 0.01))
+    fg_prior = np.full((n_classes,), -np.log((1 - 0.01) / 0.01))
+    bg_prior = np.full((1,), -np.log((1 - 0.99) / 0.99))
+    np_prior = np.concatenate((bg_prior, fg_prior))
+    prior_init = tf.keras.initializers.Constant(np_prior)
     box_heads = RetinaNetHead(9, 4, "zeros")
-    cls_heads = RetinaNetHead(9, n_classes, prior_init)
+    cls_heads = RetinaNetHead(9, n_classes + 1, prior_init)
     box_preds = []
     cls_preds = []
     for feature_map in feature_maps:
@@ -143,15 +147,7 @@ anchor_generator = MultiScaleAnchorGenerator(
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
 box_decoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2], invert=True)
-retina_loss_layer = RetinaLossLayer(n_classes=21)
-
-# Add background as class 0
-voc_classes = ['background',
-               'aeroplane', 'bicycle', 'bird', 'boat',
-               'bottle', 'bus', 'car', 'cat',
-               'chair', 'cow', 'diningtable', 'dog',
-               'horse', 'motorbike', 'person', 'pottedplant',
-               'sheep', 'sofa', 'train', 'tvmonitor']
+retina_loss_layer = RetinaLossLayer(n_classes=80)
 
 
 def resize_and_pad(image):

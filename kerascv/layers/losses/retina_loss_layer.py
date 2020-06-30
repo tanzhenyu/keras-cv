@@ -24,13 +24,14 @@ class RetinaLossLayer(tf.keras.layers.Layer):
         super(RetinaLossLayer, self).__init__(name=name, **kwargs)
 
     # y_true [batch_size, n_boxes]
-    # y_pred [batch_size, n_boxes, n_classes]
+    # y_pred [batch_size, n_boxes, n_classes + 1]
     def cls_loss(self, y_true, y_pred):
         alpha_t = tf.cast(self.alpha, tf.float32)
         gamma_t = tf.cast(self.gamma, tf.float32)
         ones = tf.constant(1., dtype=tf.float32)
-        y_true = tf.one_hot(y_true, depth=self.n_classes, on_value=1.0, off_value=0.0)
-        # [batch_size, n_boxes, n_classes]
+        # background class is always index 0
+        # [batch_size, n_boxes, n_classes], not including background class.
+        y_true = tf.one_hot(y_true, depth=self.n_classes + 1, on_value=1.0, off_value=0.0)[:, :, 1:]
         x_ent = tf.nn.sigmoid_cross_entropy_with_logits(y_true, y_pred)
         # run the sigmoid per class
         p = tf.nn.sigmoid(y_pred)
