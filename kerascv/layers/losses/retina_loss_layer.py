@@ -32,6 +32,7 @@ class RetinaLossLayer(tf.keras.layers.Layer):
         # background class is always index 0
         # [batch_size, n_boxes, n_classes], not including background class.
         y_true = tf.one_hot(y_true, depth=self.n_classes + 1, on_value=1.0, off_value=0.0)[:, :, 1:]
+        y_pred = y_pred[:, :, 1:]
         x_ent = tf.nn.sigmoid_cross_entropy_with_logits(y_true, y_pred)
         # run the sigmoid per class
         p = tf.nn.sigmoid(y_pred)
