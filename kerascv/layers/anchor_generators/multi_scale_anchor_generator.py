@@ -96,12 +96,18 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
 
     def call(self, image_size, feature_map_sizes=None):
         result = []
-        for feature_map_size, anchor_generator in zip(
-            feature_map_sizes, self.anchor_generators
-        ):
-            anchors = anchor_generator(image_size, feature_map_size)
-            anchors = tf.reshape(anchors, (-1, 4))
-            result.append(anchors)
+        if feature_map_sizes is None:
+            for anchor_generator in self.anchor_generators:
+                anchors = anchor_generator(image_size, None)
+                anchors = tf.reshape(anchors, (-1, 5))
+                result.append(anchors)
+        else:
+            for feature_map_size, anchor_generator in zip(
+                feature_map_sizes, self.anchor_generators
+            ):
+                anchors = anchor_generator(image_size, feature_map_size)
+                anchors = tf.reshape(anchors, (-1, 4))
+                result.append(anchors)
         return tf.concat(result, axis=0)
 
     def get_config(self):
