@@ -138,7 +138,7 @@ retina_resnet_aspect_ratios = [aspect_ratios] * 5
 
 anchor_generator = MultiScaleAnchorGenerator(
     scales=retina_resnet_scales, aspect_ratios=retina_resnet_aspect_ratios, dimensions=anchor_dimensions,
-    anchor_strides=anchor_strides
+    strides=anchor_strides
 )
 similarity_cal = IOUSimilarity()
 box_encoder = SSDBoxCoder(center_variances=[.1, .1], size_variances=[.2, .2])
