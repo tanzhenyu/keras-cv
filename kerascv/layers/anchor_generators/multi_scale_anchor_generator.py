@@ -94,7 +94,7 @@ class MultiScaleAnchorGenerator(tf.keras.layers.Layer):
             )
         super(MultiScaleAnchorGenerator, self).__init__(name=name, **kwargs)
 
-    def call(self, image_size, feature_map_sizes):
+    def call(self, image_size, feature_map_sizes=None):
         result = []
         for feature_map_size, anchor_generator in zip(
             feature_map_sizes, self.anchor_generators
