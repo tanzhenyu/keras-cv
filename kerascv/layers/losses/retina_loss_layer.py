@@ -26,31 +26,33 @@ class RetinaLossLayer(tf.keras.layers.Layer):
     # y_true [batch_size, n_boxes]
     # y_pred [batch_size, n_boxes, n_classes + 1]
     def cls_loss(self, y_true, y_pred):
-        alpha_t = tf.cast(self.alpha, tf.float32)
-        gamma_t = tf.cast(self.gamma, tf.float32)
-        ones = tf.constant(1., dtype=tf.float32)
-        # background class is always index 0
-        # [batch_size, n_boxes, n_classes], not including background class.
-        y_true = tf.one_hot(y_true, depth=self.n_classes + 1, on_value=1.0, off_value=0.0)[:, :, 1:]
-        y_pred = y_pred[:, :, 1:]
-        x_ent = tf.nn.sigmoid_cross_entropy_with_logits(y_true, y_pred)
-        # run the sigmoid per class
-        p = tf.nn.sigmoid(y_pred)
-        positive_indices = tf.equal(y_true, ones)
-        alpha = tf.where(positive_indices, alpha_t, (ones - alpha_t))
-        pt = tf.where(positive_indices, p, ones - p)
-        losses = alpha * tf.math.pow(ones - pt, gamma_t) * x_ent
-        # [batch_size, n_boxes]
-        return tf.reduce_sum(losses, axis=-1)
+        with tf.name_scope("cls_loss"):
+            alpha_t = tf.cast(self.alpha, tf.float32)
+            gamma_t = tf.cast(self.gamma, tf.float32)
+            ones = tf.constant(1., dtype=tf.float32)
+            # background class is always index 0
+            # [batch_size, n_boxes, n_classes], not including background class.
+            y_true = tf.one_hot(y_true, depth=self.n_classes + 1, on_value=1.0, off_value=0.0)[:, :, 1:]
+            y_pred = y_pred[:, :, 1:]
+            x_ent = tf.nn.sigmoid_cross_entropy_with_logits(y_true, y_pred)
+            # run the sigmoid per class
+            p = tf.nn.sigmoid(y_pred)
+            positive_indices = tf.equal(y_true, ones)
+            alpha = tf.where(positive_indices, alpha_t, (ones - alpha_t))
+            pt = tf.where(positive_indices, p, ones - p)
+            losses = alpha * tf.math.pow(ones - pt, gamma_t) * x_ent
+            # [batch_size, n_boxes]
+            return tf.reduce_sum(losses, axis=-1)
 
     # [batch_size, n_boxes, 4]
     # y_pred should ALWAYS come from logits directly
     def smooth_L1_loss(self, y_true, y_pred):
-        absolute_loss = tf.abs(y_true - y_pred)
-        square_loss = 0.5 * (y_true - y_pred) ** 2
-        l1_loss = tf.where(tf.less(absolute_loss, 1.0), square_loss, absolute_loss - 0.5)
-        # [batch_size, n_boxes]
-        return tf.reduce_sum(l1_loss, axis=-1)
+        with tf.name_scope("reg_loss"):
+            absolute_loss = tf.abs(y_true - y_pred)
+            square_loss = 0.5 * (y_true - y_pred) ** 2
+            l1_loss = tf.where(tf.less(absolute_loss, 1.0), square_loss, absolute_loss - 0.5)
+            # [batch_size, n_boxes]
+            return tf.reduce_sum(l1_loss, axis=-1)
 
     # y_reg_true, y_reg_pred: [batch_size, n_boxes, 4]
     # y_cls_true: [batch_size, n_boxes]
@@ -65,29 +67,30 @@ class RetinaLossLayer(tf.keras.layers.Layer):
         positive_mask,
         negative_mask,
     ):
-        # [batch_size, n_boxes]
-        reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
-        positive_mask = tf.cast(positive_mask, reg_losses.dtype)
-        negative_mask = tf.cast(negative_mask, reg_losses.dtype)
-        n_positives = tf.reduce_sum(positive_mask)
-        n_positives = tf.maximum(
-            tf.constant(1, dtype=reg_losses.dtype),
-            tf.cast(n_positives, dtype=reg_losses.dtype),
-        )
-        # regression loss includes positive anchors
-        reg_losses = tf.reduce_sum(reg_losses * positive_mask) / n_positives
-        self.add_loss(reg_losses)
+        with tf.name_scope('retina_loss'):
+            # [batch_size, n_boxes]
+            reg_losses = self.reg_loss_fn(y_true=y_reg_true, y_pred=y_reg_pred)
+            positive_mask = tf.cast(positive_mask, reg_losses.dtype)
+            negative_mask = tf.cast(negative_mask, reg_losses.dtype)
+            n_positives = tf.reduce_sum(positive_mask)
+            n_positives = tf.maximum(
+                tf.constant(1, dtype=reg_losses.dtype),
+                tf.cast(n_positives, dtype=reg_losses.dtype),
+            )
+            # regression loss includes positive anchors
+            reg_losses = tf.reduce_sum(reg_losses * positive_mask) / n_positives
+            self.add_loss(reg_losses)
 
-        cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
-        # classification loss includes both positive and negative anchors
-        pos_cls_losses = tf.reduce_sum(cls_losses * positive_mask) / n_positives
-        neg_cls_losses = tf.reduce_sum(cls_losses * negative_mask) / n_positives
-        self.add_metric(pos_cls_losses, name='pos_cls_loss')
-        self.add_metric(neg_cls_losses, name='neg_cls_loss')
-        cls_losses = pos_cls_losses + neg_cls_losses
-        self.add_loss(cls_losses)
+            cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)
+            # classification loss includes both positive and negative anchors
+            pos_cls_losses = tf.reduce_sum(cls_losses * positive_mask) / n_positives
+            neg_cls_losses = tf.reduce_sum(cls_losses * negative_mask) / n_positives
+            self.add_metric(pos_cls_losses, name='pos_cls_loss')
+            self.add_metric(neg_cls_losses, name='neg_cls_loss')
+            cls_losses = pos_cls_losses + neg_cls_losses
+            self.add_loss(cls_losses)
 
-        return y_reg_pred, y_cls_pred
+            return y_reg_pred, y_cls_pred
 
     def get_config(self):
         config = {
