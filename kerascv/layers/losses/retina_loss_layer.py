@@ -79,6 +79,7 @@ class RetinaLossLayer(tf.keras.layers.Layer):
             )
             # regression loss includes positive anchors
             reg_losses = tf.reduce_sum(reg_losses * positive_mask) / n_positives
+            self.add_metric(reg_losses, name='reg_loss')
             self.add_loss(reg_losses)
 
             cls_losses = self.cls_loss_fn(y_true=y_cls_true, y_pred=y_cls_pred)

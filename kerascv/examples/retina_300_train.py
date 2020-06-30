@@ -132,8 +132,8 @@ def build_retina_net(n_classes=80):
 # For denser scale coverage than FPN, at each level add anchors of sizes {2^0, 2^1/3, 2^2/3}
 # The anchor box scales used in the original Retina ResNet50 for the COCO dataset.
 # The anchors have areas of 32^2, 64^2, 128^2, 256^2, 521^2 on pyramid levels P3 to P7, respectively.
-scales = [1, 2 ** (1/3), 2 ** (2/3)]
-aspect_ratios = [0.5, 1.0, 2.0]
+scales = [1, 2 ** (1/3), 2 ** (2/3)] * 3
+aspect_ratios = [0.5, 1.0, 2.0] * 3
 anchor_dimensions = [32, 64, 128, 256, 512]
 anchor_strides = [2 ** 3, 2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7]
 
@@ -208,7 +208,7 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
 
 def lr_scheduler(epoch, lr):
     # decay learning rate at epoch 80 and 100
-    if epoch == 80 or epoch == 100:
+    if epoch == 8 or epoch == 10:
         return 0.1 * lr
     else:
         return lr
@@ -220,37 +220,39 @@ def train_eval_save():
     eval_coco_ds = coco_ds_2017['validation'].shuffle(buffer_size=250)
     train_coco_ds = coco_ds_2017['train'].shuffle(buffer_size=250)
     train_coco_ds = train_coco_ds.concatenate(eval_coco_ds)
-    encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(2)
+    encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(16)
 
-    encoded_eval_coco_ds = eval_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(2).take(100)
+    encoded_eval_coco_ds = eval_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(16).take(10)
 
-    retina_model = build_retina_net()
-    gt_loc_pred, gt_cls_pred = retina_model.outputs
-    gt_loc_input = Input((None, 4), dtype=tf.float32, name='gt_loc_true')
-    gt_cls_input = Input((None,), dtype=tf.int64, name='gt_cls_true')
-    positive_mask = Input((None,), dtype=tf.float32, name='positive_mask')
-    negative_mask = Input((None,), dtype=tf.float32, name='negative_mask')
-    gt_final_loc_pred, gt_final_cls_pred = retina_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
-                                                             positive_mask, negative_mask)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        retina_model = build_retina_net()
+        gt_loc_pred, gt_cls_pred = retina_model.outputs
+        gt_loc_input = Input((None, 4), dtype=tf.float32, name='gt_loc_true')
+        gt_cls_input = Input((None,), dtype=tf.int64, name='gt_cls_true')
+        positive_mask = Input((None,), dtype=tf.float32, name='positive_mask')
+        negative_mask = Input((None,), dtype=tf.float32, name='negative_mask')
+        gt_final_loc_pred, gt_final_cls_pred = retina_loss_layer(gt_loc_input, gt_loc_pred, gt_cls_input, gt_cls_pred,
+                                                                 positive_mask, negative_mask)
 
-    model_inputs = {'image': retina_model.inputs[0],
-                    'matched_gt_boxes': gt_loc_input,
-                    'matched_gt_labels': gt_cls_input,
-                    'positive_mask': positive_mask,
-                    'negative_mask': negative_mask}
-    model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
-    train_model = Model(inputs=model_inputs, outputs=model_outputs)
+        model_inputs = {'image': retina_model.inputs[0],
+                        'matched_gt_boxes': gt_loc_input,
+                        'matched_gt_labels': gt_cls_input,
+                        'positive_mask': positive_mask,
+                        'negative_mask': negative_mask}
+        model_outputs = [gt_final_loc_pred, gt_final_cls_pred]
+        train_model = Model(inputs=model_inputs, outputs=model_outputs)
 
-    learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
-        schedule=lr_scheduler, verbose=1)
-    optimizer = tfa.optimizers.AdamW(weight_decay=0.0005, learning_rate=0.001)
-    train_model.compile(optimizer)
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath='./retina_weights/my_retina.{epoch:02d}-{val_loss:.2f}.hdf5',
-        save_weights_only=True, save_best_only=True)
+        learning_rate_scheduler = tf.keras.callbacks.LearningRateScheduler(
+            schedule=lr_scheduler, verbose=1)
+        optimizer = tfa.optimizers.AdamW(weight_decay=0.0001, learning_rate=0.01)
+        train_model.compile(optimizer)
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath='./retina_weights/my_retina.{epoch:02d}-{val_loss:.2f}.hdf5',
+            save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_train_coco_ds.prefetch(1000), epochs=350,
+    train_model.fit(encoded_train_coco_ds.prefetch(1000), epochs=12,
                     callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_eval_coco_ds)
 
 
