@@ -1,6 +1,7 @@
 from kerascv.layers.anchor_generators.multi_scale_anchor_generator import MultiScaleAnchorGenerator
 from kerascv.layers.iou_similarity import IOUSimilarity
 from kerascv.layers.losses.retina_loss_layer import RetinaLossLayer
+from kerascv.layers.matchers.argmax_matcher import target_assign_argmax
 from kerascv.layers.matchers.greedy_bipartite import target_assign_tf_func
 from kerascv.layers.ssd_box_coder import SSDBoxCoder
 from kerascv.examples.preprocessing.color_transforms import *
@@ -194,11 +195,9 @@ def flatten_and_preprocess(features):
 
 
 def assigned_gt_fn(image, gt_boxes, gt_labels):
-    image_size = tf.shape(image)
-    anchors = anchor_generator(image_size)
     # Anchors are assigned to ground truth boxes using an OU threshold of 0.5, and background if in [0, 0.4)
     # Anchor with overlap in [0.4, 0.5) will be ignored during training.
-    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_tf_func(
+    matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask = target_assign_argmax(
         gt_boxes, gt_labels, anchors, positive_iou_threshold=0.5, negative_iou_threshold=0.4)
     encoded_matched_gt_boxes = box_encoder(matched_gt_boxes, anchors)
     matched_gt_labels = tf.squeeze(matched_gt_labels, axis=-1)
@@ -208,7 +207,7 @@ def assigned_gt_fn(image, gt_boxes, gt_labels):
 
 def lr_scheduler(epoch, lr):
     # decay learning rate at epoch 80 and 100
-    if epoch == 8 or epoch == 10:
+    if epoch == 120 or epoch == 160:
         return 0.1 * lr
     else:
         return lr
@@ -217,8 +216,8 @@ def lr_scheduler(epoch, lr):
 def train_eval_save():
     coco_ds_2017 = tfds.load('coco/2017')
 
-    eval_coco_ds = coco_ds_2017['validation'].shuffle(buffer_size=250)
-    train_coco_ds = coco_ds_2017['train'].shuffle(buffer_size=250)
+    eval_coco_ds = coco_ds_2017['validation'].shuffle(buffer_size=64)
+    train_coco_ds = coco_ds_2017['train'].shuffle(buffer_size=64)
     train_coco_ds = train_coco_ds.concatenate(eval_coco_ds)
     encoded_train_coco_ds = train_coco_ds.map(flatten_and_preprocess).map(assigned_gt_fn).batch(16)
 
@@ -252,7 +251,8 @@ def train_eval_save():
             save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
-    train_model.fit(encoded_train_coco_ds.prefetch(1000), epochs=12,
+    # Using around 8k images per epoch, the paper trains for 90K iterations with batch size 16, around 180 epochs.
+    train_model.fit(encoded_train_coco_ds.prefetch(tf.data.experimental.AUTOTUNE), epochs=180,
                     callbacks=[learning_rate_scheduler, ckpt_callback], validation_data=encoded_eval_coco_ds)
 
 
