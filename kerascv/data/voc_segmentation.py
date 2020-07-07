@@ -71,7 +71,7 @@ def voc_segmentation_dataset_from_directory(
                     img_pil = img_pil.filter(ImageFilter.GaussianBlur(
                         radius=random.random()))
                 # Automatically convert palette mode to grayscale with class index.
-                return np.array(img_pil), np.array(mask_pil)
+                yield np.array(img_pil), np.array(mask_pil)
 
     img_ds = tf.data.Dataset.from_generator(file_generator, (tf.uint8, tf.uint8))
     if shuffle:
