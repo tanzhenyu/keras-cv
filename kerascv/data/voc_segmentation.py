@@ -9,7 +9,7 @@ def voc_segmentation_dataset_from_directory(
         directory=None,
         base_size=520,
         crop_size=480,
-        batch_size=32,
+        batch_size=20,
         split="train",
         shuffle=True,
         seed=None,
@@ -70,10 +70,18 @@ def voc_segmentation_dataset_from_directory(
                 if random.random() < 0.5:
                     img_pil = img_pil.filter(ImageFilter.GaussianBlur(
                         radius=random.random()))
+                # preprocess image before returning
+                img = np.array(img_pil)
+                img = tf.keras.applications.vgg16.preprocess_input(img)
+                mask = np.array(mask_pil)
+                sample_weights = np.zeros_like(mask, dtype=np.float)
+                ignore_mask_indices = (mask == 255)
+                sample_weights[ignore_mask_indices] = 0.
+                mask[ignore_mask_indices] = 0
                 # Automatically convert palette mode to grayscale with class index.
-                yield np.array(img_pil), np.array(mask_pil)
+                yield img, mask, sample_weights
 
-    img_ds = tf.data.Dataset.from_generator(file_generator, (tf.uint8, tf.uint8))
+    img_ds = tf.data.Dataset.from_generator(file_generator, (tf.float32, tf.uint8, tf.float32))
     if shuffle:
         img_ds = img_ds.shuffle(buffer_size=8 * batch_size, seed=seed)
     img_ds = img_ds.batch(batch_size)
