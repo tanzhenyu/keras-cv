@@ -25,7 +25,7 @@ def set_upsampling_weight(layer):
                       dtype=np.float64)
     for i in range(out_channels):
         for j in range(in_channels):
-        weight[:, :, i, j] = filt
+            weight[:, :, i, j] = filt
     kernel.assign(weight)
 
 
