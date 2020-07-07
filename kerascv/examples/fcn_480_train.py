@@ -23,7 +23,9 @@ def set_upsampling_weight(layer):
            (1 - abs(og[1] - center) / factor)
     weight = np.zeros((kernel_size, kernel_size, out_channels, in_channels),
                       dtype=np.float64)
-    weight[:, :, range(out_channels), range(in_channels)] = filt
+    for i in range(out_channels):
+        for j in range(in_channels):
+        weight[:, :, i, j] = filt
     kernel.assign(weight)
 
 
