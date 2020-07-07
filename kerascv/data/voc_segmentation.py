@@ -75,7 +75,7 @@ def voc_segmentation_dataset_from_directory(
                 img = np.array(img_pil)
                 img = tf.keras.applications.vgg16.preprocess_input(img)
                 mask = np.array(mask_pil)
-                sample_weights = np.zeros_like(mask, dtype=np.float)
+                sample_weights = np.ones_like(mask, dtype=np.float)
                 ignore_mask_indices = (mask == 255)
                 sample_weights[ignore_mask_indices] = 0.
                 mask[ignore_mask_indices] = 0

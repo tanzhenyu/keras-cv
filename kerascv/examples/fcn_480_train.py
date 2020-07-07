@@ -8,6 +8,7 @@ from kerascv.data.voc_segmentation import voc_segmentation_dataset_from_director
 def set_upsampling_weight(layer):
     kernel = layer.kernel
     kernel_shape = kernel.shape.as_list()
+    print('kernel shape {}'.format(kernel_shape))
     kernel_size = kernel_shape[0]
     in_channels = kernel_shape[2]
     out_channels = kernel_shape[3]
@@ -20,11 +21,9 @@ def set_upsampling_weight(layer):
     og = np.ogrid[:kernel_size, :kernel_size]
     filt = (1 - abs(og[0] - center) / factor) * \
            (1 - abs(og[1] - center) / factor)
-    weight = np.zeros((kernel_size, kernel_size, in_channels, out_channels),
+    weight = np.zeros((kernel_size, kernel_size, out_channels, in_channels),
                       dtype=np.float64)
-    for i in range(kernel_size):
-        for j in range(kernel_size):
-            weight[i, j, :, :] = filt
+    weight[:, :, range(out_channels), range(in_channels)] = filt
     kernel.assign(weight)
 
 
@@ -36,30 +35,42 @@ def get_fcn_32(input_shape, n_classes=21):
     x = layers.Dropout(0.5)(x)
     x = layers.Conv2D(4096, 1, padding="same", activation="relu", name="fc7")(x)
     x = layers.Dropout(0.5)(x)
-    conv_upsample = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal")
+    x = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal")(x)
+    conv_upsample = layers.Conv2DTranspose(n_classes, kernel_size=(64, 64), strides=(32, 32), use_bias=False, padding="same")
     x = conv_upsample(x)
     set_upsampling_weight(conv_upsample)
-    x = layers.Conv2DTranspose(n_classes, kernel_size=(64, 64), strides=(32, 32), use_bias=False, padding="same")(x)
     x = layers.Activation("softmax")(x)
     return tf.keras.Model(keras_inp, x, name="fcn32_vgg16")
 
 
+class XentLoss(tf.keras.losses.Loss):
+    def __init__(self, batch_size):
+        super(XentLoss, self).__init__(reduction=tf.keras.losses.Reduction.NONE, name=None)
+        self.xent_loss = tf.keras.losses.CategoricalCrossentropy(reduction=tf.keras.losses.Reduction.NONE)
+        self.batch_size = batch_size
+
+    def call(self, y_true, y_pred):
+        loss = self.xent_loss(y_true, y_pred)
+        loss = tf.reduce_sum(loss, axis=[-2, -1])
+        loss = tf.reduce_sum(loss) / self.batch_size
+        return loss
+
+
 def train_val_save_fcn_32():
-    train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train")
-    eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val")
+    batch_size = 20
+    train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
+    eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         input_shape = (480, 480, 3)
-        loss = tf.keras.losses.CategoricalCrossentropy()
+        loss = XentLoss(batch_size=batch_size)
         acc_metric = tf.keras.metrics.CategoricalAccuracy()
         loss_metric = tf.keras.metrics.CategoricalCrossentropy()
-        # iou_metric = tf.keras.metrics.MeanIoU(num_classes=21)
-        tp_metric = tf.keras.metrics.TruePositives()
-        fp_metric = tf.keras.metrics.FalsePositives()
-        fn_metric = tf.keras.metrics.FalseNegatives()
+        pr_metric = tf.keras.metrics.Precision()
+        re_metric = tf.keras.metrics.Recall()
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32(input_shape)
-        model.compile(optimizer, loss, [acc_metric, loss_metric, tp_metric, fp_metric, fn_metric])
+        model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
             save_weights_only=True, save_best_only=True)
