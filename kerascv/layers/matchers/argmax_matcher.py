@@ -91,6 +91,13 @@ def target_assign_argmax(
         anchors,
         positive_iou_threshold=0.5,
         negative_iou_threshold=0.3):
+    if tf.equal(tf.size(ground_truth_boxes), 0):
+        num_anchors = tf.shape(anchors)[0]
+        matched_gt_boxes = tf.identity(anchors)
+        matched_gt_labels = tf.zeros((num_anchors, 1), dtype=tf.int64)
+        positive_mask = tf.zeros((num_anchors, 1), tf.bool)
+        negative_mask = tf.zeros((num_anchors, 1), tf.bool)
+        return matched_gt_boxes, matched_gt_labels, positive_mask, negative_mask
     # [n_gt_boxes, n_anchors]
     similarity = iou_layer(ground_truth_boxes, anchors)
     # [n_anchors]
