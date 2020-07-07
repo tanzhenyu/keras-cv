@@ -17,7 +17,7 @@ def voc_segmentation_dataset_from_directory(
     directory = directory or os.path.expanduser('~/VOCdevkit/VOC2012')
     if not os.path.isdir(directory):
         raise ValueError("Directory Not Found {}".format(directory))
-    mask_dir = os.path.join(directory, "SegmentationClassRaw")
+    mask_dir = os.path.join(directory, "SegmentationClass")
     image_dir = os.path.join(directory, "JPEGImages")
     splits_dir = os.path.join(directory, "ImageSets/Segmentation")
     if split == "train":
