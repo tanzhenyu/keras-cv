@@ -13,6 +13,7 @@ def voc_segmentation_dataset_from_directory(
         split="train",
         shuffle=True,
         seed=None,
+        n_classes=21,
 ):
     directory = directory or os.path.expanduser('~/VOCdevkit/VOC2012')
     if not os.path.isdir(directory):
@@ -82,7 +83,17 @@ def voc_segmentation_dataset_from_directory(
                 yield img, mask, sample_weights
 
     img_ds = tf.data.Dataset.from_generator(file_generator, (tf.float32, tf.uint8, tf.float32))
+
+    def set_shape_fn(img, mask, sample_weights):
+        img.set_shape([crop_size, crop_size, 3])
+        mask.set_shape([crop_size, crop_size])
+        mask_one_hot = tf.one_hot(mask, depth=n_classes)
+        mask_one_hot.set_shape([crop_size, crop_size, n_classes])
+        sample_weights.set_shape([crop_size, crop_size])
+        return img, mask_one_hot, sample_weights
+
     if shuffle:
         img_ds = img_ds.shuffle(buffer_size=8 * batch_size, seed=seed)
+    img_ds = img_ds.map(set_shape_fn)
     img_ds = img_ds.batch(batch_size)
     return img_ds
