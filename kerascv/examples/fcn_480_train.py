@@ -45,39 +45,29 @@ def get_fcn_32(input_shape, n_classes=21):
     return tf.keras.Model(keras_inp, x, name="fcn32_vgg16")
 
 
-class XentLoss(tf.keras.losses.Loss):
-    def __init__(self, batch_size):
-        super(XentLoss, self).__init__(reduction=tf.keras.losses.Reduction.NONE, name=None)
-        self.xent_loss = tf.keras.losses.CategoricalCrossentropy(reduction=tf.keras.losses.Reduction.NONE)
-        self.batch_size = batch_size
-
-    def call(self, y_true, y_pred):
-        loss = self.xent_loss(y_true, y_pred)
-        loss = tf.reduce_sum(loss, axis=[-2, -1])
-        loss = tf.reduce_sum(loss) / self.batch_size
-        return loss
-
-
 def train_val_save_fcn_32():
     batch_size = 20
     train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
-    # strategy = tf.distribute.MirroredStrategy()
-    # with strategy.scope():
-    input_shape = (480, 480, 3)
-    loss = XentLoss(batch_size=batch_size)
-    acc_metric = tf.keras.metrics.CategoricalAccuracy()
-    loss_metric = tf.keras.metrics.CategoricalCrossentropy()
-    pr_metric = tf.keras.metrics.Precision()
-    re_metric = tf.keras.metrics.Recall()
-    optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
-    model = get_fcn_32(input_shape)
-    model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
-        save_weights_only=True, save_best_only=True)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        input_shape = (480, 480, 3)
+        loss = tf.keras.losses.CategoricalCrossentropy()
+        acc_metric = tf.keras.metrics.CategoricalAccuracy()
+        loss_metric = tf.keras.metrics.CategoricalCrossentropy()
+        pr_metric = tf.keras.metrics.Precision()
+        re_metric = tf.keras.metrics.Recall()
+        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
+        model = get_fcn_32(input_shape)
+        model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
+            save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
+    print('-------------------Trainable Variables-------------------')
+    for var in model.trainable_variables:
+        print('var {}, {}'.format(var.name, var.shape))
     # 2913 images is around 150 steps
     model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=10,
               callbacks=[ckpt_callback], validation_data=eval_voc_ds_2012)
