@@ -60,20 +60,20 @@ def train_val_save_fcn_32():
     batch_size = 20
     train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
-    strategy = tf.distribute.MirroredStrategy()
-    with strategy.scope():
-        input_shape = (480, 480, 3)
-        loss = XentLoss(batch_size=batch_size)
-        acc_metric = tf.keras.metrics.CategoricalAccuracy()
-        loss_metric = tf.keras.metrics.CategoricalCrossentropy()
-        pr_metric = tf.keras.metrics.Precision()
-        re_metric = tf.keras.metrics.Recall()
-        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
-        model = get_fcn_32(input_shape)
-        model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
-        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
-            save_weights_only=True, save_best_only=True)
+    # strategy = tf.distribute.MirroredStrategy()
+    # with strategy.scope():
+    input_shape = (480, 480, 3)
+    loss = XentLoss(batch_size=batch_size)
+    acc_metric = tf.keras.metrics.CategoricalAccuracy()
+    loss_metric = tf.keras.metrics.CategoricalCrossentropy()
+    pr_metric = tf.keras.metrics.Precision()
+    re_metric = tf.keras.metrics.Recall()
+    optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
+    model = get_fcn_32(input_shape)
+    model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
+    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
+        save_weights_only=True, save_best_only=True)
 
     print('-------------------Start Training-------------------')
     # 2913 images is around 150 steps
