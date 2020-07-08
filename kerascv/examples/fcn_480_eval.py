@@ -30,13 +30,14 @@ def eval_fcn_32():
     input_shape = (480, 480, 3)
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
     acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
+    iou_metric = tf.keras.metrics.MeanIoU()
     optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
     model = get_fcn_32(weights_path, input_shape)
     y_pred = model.outputs[0]
     y_pred = tf.math.argmax(y_pred, axis=-1)
     inputs = model.inputs
     eval_model = tf.keras.Model(inputs, y_pred)
-    eval_model.compile(optimizer, loss, [acc_metric])
+    eval_model.compile(optimizer, loss, [acc_metric, iou_metric])
     print('-------------------Start Evaluating-------------------')
     eval_model.evaluate(eval_voc_ds_2012)
 
