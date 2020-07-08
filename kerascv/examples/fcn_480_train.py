@@ -92,7 +92,7 @@ def train_val_save_fcn_32():
         model.compile(optimizer, "sparse_categorical_crossentropy", weighted_metrics=["accuracy", iou_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath='fcn_32.hdf5', save_best_only=True, monitor="val_my_iou_metrics")
-        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01, monitor="val_my_iou_metrics")
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=3, min_delta=0.01, monitor="val_my_iou_metrics")
 
     print('-------------------Start Training FCN32-------------------')
     print('-------------------Trainable Variables-------------------')
