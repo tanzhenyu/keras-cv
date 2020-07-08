@@ -25,7 +25,7 @@ def get_fcn_32(weights_path, input_shape, n_classes=21):
 
 def eval_fcn_32():
     batch_size = 20
-    weights_path = os.path.join(os.getcwd(), 'fcn_32_weights/fcn_32.hdf5')
+    weights_path = os.path.join(os.getcwd(), 'fcn_32.hdf5')
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
