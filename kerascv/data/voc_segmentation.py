@@ -60,7 +60,7 @@ def voc_segmentation_dataset_from_directory(
                     padh = crop_size - oh if oh < crop_size else 0
                     padw = crop_size - ow if ow < crop_size else 0
                     img_pil = ImageOps.expand(img_pil, border=(0, 0, padw, padh), fill=0)
-                    mask_pil = ImageOps.expand(mask_pil, border=(0, 0, padw, padh), fill=0)
+                    mask_pil = ImageOps.expand(mask_pil, border=(0, 0, padw, padh), fill=255)
                 # random crop crop_size
                 w, h = img_pil.size
                 x1 = random.randint(0, w - crop_size)

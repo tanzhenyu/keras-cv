@@ -86,12 +86,13 @@ def train_val_save_fcn_32():
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
+        optimizer = tfa.optimizers.AdamW(weight_decay=0.0002, learning_rate=0.001)
         model = get_fcn_32()
         iou_metric = MyIOUMetrics()
         model.compile(optimizer, "sparse_categorical_crossentropy", weighted_metrics=["accuracy", iou_metric])
-        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32.hdf5', save_best_only=True)
-        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath='fcn_32.hdf5', save_best_only=True, monitor="val_my_iou_metrics")
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01, monitor="val_my_iou_metrics")
 
     print('-------------------Start Training FCN32-------------------')
     print('-------------------Trainable Variables-------------------')
@@ -109,12 +110,13 @@ def train_val_save_fcn_16():
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.0001, momentum=0.9)
+        optimizer = tfa.optimizers.AdamW(weight_decay=0.0002, learning_rate=0.0001)
         model = get_fcn_16()
         iou_metric = MyIOUMetrics()
         model.compile(optimizer, "sparse_categorical_crossentropy", weighted_metrics=["accuracy", iou_metric])
-        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_16.hdf5', save_best_only=True)
-        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=3, min_delta=0.01)
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath='fcn_32.hdf5', save_best_only=True, monitor="val_my_iou_metrics")
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=3, min_delta=0.01, monitor="val_my_iou_metrics")
 
     print('-------------------Start Training FCN16-------------------')
     print('-------------------Trainable Variables-------------------')
