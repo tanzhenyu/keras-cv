@@ -12,7 +12,7 @@ input_shape = (480, 480, 3)
 
 class MyIOUMetrics(tf.keras.metrics.MeanIoU):
     def __init__(self, name=None, **kwargs):
-        super(MyIOUMetrics, self).__init__(name=name, **kwargs)
+        super(MyIOUMetrics, self).__init__(num_classes=num_classes, name=name, **kwargs)
 
     def update_state(self, y_true, y_pred, sample_weight=None):
         y_pred = tf.argmax(y_pred, axis=-1)
