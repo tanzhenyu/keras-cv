@@ -52,17 +52,14 @@ def train_val_save_fcn_32():
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         input_shape = (480, 480, 3)
-        loss = tf.keras.losses.CategoricalCrossentropy()
-        acc_metric = tf.keras.metrics.CategoricalAccuracy()
-        loss_metric = tf.keras.metrics.CategoricalCrossentropy()
-        pr_metric = tf.keras.metrics.Precision()
-        re_metric = tf.keras.metrics.Recall()
+        loss = tf.keras.losses.SparseCategoricalCrossentropy()
+        acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32(input_shape)
-        model.compile(optimizer, loss, [acc_metric, loss_metric, pr_metric, re_metric])
+        model.compile(optimizer, loss, [acc_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
-            save_weights_only=True, save_best_only=True)
+            save_best_only=True)
 
     print('-------------------Start Training-------------------')
     print('-------------------Trainable Variables-------------------')

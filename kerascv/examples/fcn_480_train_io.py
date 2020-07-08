@@ -107,7 +107,7 @@ def train_eval_io():
     with strategy.scope():
         model = get_fcn_32()
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
-        acc_metric = tf.keras.metrics.CategoricalAccuracy()
+        acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
         pr_metric = tf.keras.metrics.Precision()
         re_metric = tf.keras.metrics.Recall()
         model.compile(optimizer, "sparse_categorical_crossentropy", [acc_metric, pr_metric, re_metric])
@@ -119,6 +119,7 @@ def train_eval_io():
     print('-------------------Trainable Variables-------------------')
     for var in model.trainable_variables:
         print('var {}, {}'.format(var.name, var.shape))
+    model.summary()
     # 2913 images is around 150 steps
     model.fit(train_gen, epochs=10, callbacks=[ckpt_callback], validation_data=val_gen)
 

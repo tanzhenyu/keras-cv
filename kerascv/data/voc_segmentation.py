@@ -87,10 +87,11 @@ def voc_segmentation_dataset_from_directory(
     def set_shape_fn(img, mask, sample_weights):
         img.set_shape([crop_size, crop_size, 3])
         mask.set_shape([crop_size, crop_size])
-        mask_one_hot = tf.one_hot(mask, depth=n_classes)
-        mask_one_hot.set_shape([crop_size, crop_size, n_classes])
+        # mask_one_hot = tf.one_hot(mask, depth=n_classes)
+        # mask_one_hot.set_shape([crop_size, crop_size, n_classes])
         sample_weights.set_shape([crop_size, crop_size])
-        return img, mask_one_hot, sample_weights
+        # return img, mask_one_hot, sample_weights
+        return img, mask, sample_weights
 
     if shuffle:
         img_ds = img_ds.shuffle(buffer_size=8 * batch_size, seed=seed)
