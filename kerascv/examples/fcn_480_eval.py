@@ -25,21 +25,18 @@ def get_fcn_32(weights_path, input_shape, n_classes=21):
 
 def eval_fcn_32():
     batch_size = 20
-    weights_path = os.path.expanduser('~/fcn_32_weights/fcn_32.hdf5')
+    weights_path = os.path.join(os.getcwd(), 'fcn_32_weights/fcn_32.hdf5')
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         input_shape = (480, 480, 3)
-        loss = tf.keras.losses.SparseCategoricalCrossentropy()
-        acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
         iou_metric = tf.keras.metrics.MeanIoU(num_classes=21)
-        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32(weights_path, input_shape)
         y_pred = model.outputs[0]
         y_pred = tf.math.argmax(y_pred, axis=-1)
         inputs = model.inputs
         eval_model = tf.keras.Model(inputs, y_pred)
-        eval_model.compile(optimizer, loss, [acc_metric, iou_metric])
+        eval_model.compile([iou_metric])
     print('-------------------Start Evaluating-------------------')
     eval_model.evaluate(eval_voc_ds_2012)
 
