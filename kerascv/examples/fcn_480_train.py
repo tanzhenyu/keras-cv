@@ -78,7 +78,7 @@ def get_fcn_16(n_classes=21):
     set_upsampling_weight(conv_upsample)
 
     o2 = backbone.get_layer("block4_pool").output
-    o2 = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal")(o2)
+    o2 = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal", name="fcn_16_block4_pool_conv_1")(o2)
 
     o = layers.Add()([o1, o2])
     conv_upsample = layers.Conv2DTranspose(n_classes, kernel_size=(32, 32), strides=(16, 16), use_bias=False,
@@ -99,7 +99,7 @@ def train_val_save_fcn_16():
         model = get_fcn_16()
         model.compile(optimizer, "sparse_categorical_crossentropy", ["accuracy"])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_16.hdf5', save_best_only=True)
-        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=3, min_delta=0.01)
 
     print('-------------------Start Training FCN16-------------------')
     print('-------------------Trainable Variables-------------------')
@@ -107,7 +107,7 @@ def train_val_save_fcn_16():
         print('var {}, {}'.format(var.name, var.shape))
     model.summary()
     # 2913 images is around 150 steps
-    model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=40,
+    model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=10,
               callbacks=[lr_callback, ckpt_callback], validation_data=eval_voc_ds_2012)
 
 
