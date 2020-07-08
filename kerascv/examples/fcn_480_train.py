@@ -8,7 +8,6 @@ from kerascv.data.voc_segmentation import voc_segmentation_dataset_from_director
 def set_upsampling_weight(layer):
     kernel = layer.kernel
     kernel_shape = kernel.shape.as_list()
-    print('kernel shape {}'.format(kernel_shape))
     kernel_size = kernel_shape[0]
     in_channels = kernel_shape[2]
     out_channels = kernel_shape[3]
@@ -46,7 +45,7 @@ def get_fcn_32(input_shape, n_classes=21):
 
 
 def train_val_save_fcn_32():
-    batch_size = 32
+    batch_size = 20
     train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
@@ -54,7 +53,7 @@ def train_val_save_fcn_32():
         input_shape = (480, 480, 3)
         loss = tf.keras.losses.SparseCategoricalCrossentropy()
         acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
-        optimizer = tfa.optimizers.AdamW(weight_decay=0.0002, learning_rate=0.001)
+        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32(input_shape)
         model.compile(optimizer, loss, [acc_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32.hdf5', save_best_only=True)
