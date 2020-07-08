@@ -80,10 +80,14 @@ class VOCData(tf.keras.utils.Sequence):
             img = load_img(path, target_size=self.img_size)
             x[j] = img
         y = np.zeros((self.batch_size,) + self.img_size + (1,), dtype="uint8")
+        sample_weights = np.ones_like(y, dtype=np.float)
         for j, path in enumerate(batch_target_img_paths):
             img = load_img(path, target_size=self.img_size, color_mode="grayscale")
+            ignore_mask_indices = (y == 255)
+            sample_weights[ignore_mask_indices] = 0.
+            y[ignore_mask_indices] = 0
             y[j] = np.expand_dims(img, 2)
-        return x, y
+        return x, y, sample_weights
 
 
 def train_eval_io():
