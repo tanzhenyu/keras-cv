@@ -3,12 +3,13 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow.keras.preprocessing.image import load_img
-from tensorflow.keras import layers
+from kerascv.examples.fcn_480_train import MyIOUMetrics, get_fcn_32
 
 
 batch_size = 20
 input_shape = (480, 480, 3)
 img_size = input_shape[:2]
+num_classes = 21
 directory = os.path.expanduser('~/VOCdevkit/VOC2012')
 mask_dir = os.path.join(directory, "SegmentationClass")
 image_dir = os.path.join(directory, "JPEGImages")
@@ -60,7 +61,7 @@ eval_target_img_paths = sorted(
 
 class VOCData(tf.keras.utils.Sequence):
 
-    def __init__(self, batch_size, img_size, input_img_paths, target_img_paths):
+    def __init__(self, input_img_paths, target_img_paths):
         self.batch_size = batch_size
         self.img_size = img_size
         self.input_img_paths = input_img_paths
@@ -85,43 +86,26 @@ class VOCData(tf.keras.utils.Sequence):
         return x, y
 
 
-def get_fcn_32(n_classes=21):
-    keras_inp = tf.keras.Input(shape=input_shape, name="fcn_32s")
-    backbone = tf.keras.applications.vgg16.VGG16(include_top=False, weights="imagenet", input_tensor=keras_inp)
-    x = backbone.outputs[0]
-    x = layers.Conv2D(4096, 7, padding="same", activation="relu", name="fc6")(x)
-    x = layers.Dropout(0.5)(x)
-    x = layers.Conv2D(4096, 1, padding="same", activation="relu", name="fc7")(x)
-    x = layers.Dropout(0.5)(x)
-    x = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal")(x)
-    conv_upsample = layers.Conv2DTranspose(n_classes, kernel_size=(64, 64), strides=(32, 32), use_bias=False, padding="same")
-    x = conv_upsample(x)
-    x = layers.Activation("softmax")(x)
-    return tf.keras.Model(keras_inp, x, name="fcn32_vgg16")
-
-
 def train_eval_io():
-    train_gen = VOCData(batch_size, img_size, train_input_img_paths, train_target_img_paths)
-    val_gen = VOCData(batch_size, img_size, eval_input_img_paths, eval_target_img_paths)
+    train_gen = VOCData(train_input_img_paths, train_target_img_paths)
+    val_gen = VOCData(eval_input_img_paths, eval_target_img_paths)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         model = get_fcn_32()
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
-        acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
-        pr_metric = tf.keras.metrics.Precision()
-        re_metric = tf.keras.metrics.Recall()
-        model.compile(optimizer, "sparse_categorical_crossentropy", [acc_metric, pr_metric, re_metric])
-        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath='./fcn_32_weights_io/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
-            save_best_only=True)
+        iou_metric = MyIOUMetrics(num_classes)
+        model.compile(optimizer, "sparse_categorical_crossentropy", ["accuracy", iou_metric])
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32_io.hdf5', save_best_only=True)
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
 
-    print('-------------------Start Training-------------------')
+    print('-------------------Start Training FCN32 IO-------------------')
     print('-------------------Trainable Variables-------------------')
     for var in model.trainable_variables:
         print('var {}, {}'.format(var.name, var.shape))
     model.summary()
     # 2913 images is around 150 steps
-    model.fit(train_gen, epochs=10, callbacks=[ckpt_callback], validation_data=val_gen)
+    model.fit(train_gen, epochs=100,
+              callbacks=[lr_callback, ckpt_callback], validation_data=val_gen)
 
 
 if __name__ == "__main__":
