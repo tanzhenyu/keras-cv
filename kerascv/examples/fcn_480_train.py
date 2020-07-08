@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow.keras import layers
@@ -51,15 +52,56 @@ def train_val_save_fcn_32():
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         input_shape = (480, 480, 3)
-        loss = tf.keras.losses.SparseCategoricalCrossentropy()
-        acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32(input_shape)
-        model.compile(optimizer, loss, [acc_metric])
+        model.compile(optimizer, "sparse_categorical_crossentropy", ["accuracy"])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32.hdf5', save_best_only=True)
-        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5)
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
 
-    print('-------------------Start Training-------------------')
+    print('-------------------Start Training FCN32-------------------')
+    print('-------------------Trainable Variables-------------------')
+    for var in model.trainable_variables:
+        print('var {}, {}'.format(var.name, var.shape))
+    model.summary()
+    # 2913 images is around 150 steps
+    model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=40,
+              callbacks=[lr_callback, ckpt_callback], validation_data=eval_voc_ds_2012)
+
+
+def get_fcn_16(n_classes=21):
+    backbone = tf.keras.models.load_model('fcn_32.hdf5', compile=False)
+
+    o1 = backbone.get_layer("conv2d").output
+    conv_upsample = layers.Conv2DTranspose(n_classes, kernel_size=(4, 4), strides=(2, 2), use_bias=False,
+                                           padding="same", name="fcn_16_pool5_conv2d_transpose_2")
+    o1 = conv_upsample(o1)
+    set_upsampling_weight(conv_upsample)
+
+    o2 = backbone.get_layer("block4_pool").output
+    o2 = layers.Conv2D(n_classes, 1, kernel_initializer="he_normal")(o2)
+
+    o = layers.Add()([o1, o2])
+    conv_upsample = layers.Conv2DTranspose(n_classes, kernel_size=(32, 32), strides=(16, 16), use_bias=False,
+                                           padding="same", name="fcn_16_conv2d_transpose_16")
+    o = conv_upsample(o)
+    set_upsampling_weight(conv_upsample)
+    o = layers.Activation("softmax")(o)
+    return tf.keras.Model(backbone.input, o, name="fcn16_vgg16")
+
+
+def train_val_save_fcn_16():
+    batch_size = 20
+    train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
+    eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.0001, momentum=0.9)
+        model = get_fcn_16()
+        model.compile(optimizer, "sparse_categorical_crossentropy", ["accuracy"])
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_16.hdf5', save_best_only=True)
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
+
+    print('-------------------Start Training FCN16-------------------')
     print('-------------------Trainable Variables-------------------')
     for var in model.trainable_variables:
         print('var {}, {}'.format(var.name, var.shape))
@@ -70,4 +112,7 @@ def train_val_save_fcn_32():
 
 
 if __name__ == "__main__":
-    train_val_save_fcn_32()
+    if not os.path.exists("fcn_32.hdf5"):
+        train_val_save_fcn_32()
+    elif not os.path.exists("fcn_16.hdf5"):
+        train_val_save_fcn_16()

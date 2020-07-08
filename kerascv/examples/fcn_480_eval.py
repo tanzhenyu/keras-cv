@@ -1,6 +1,5 @@
 import os
 import tensorflow as tf
-import tensorflow_addons as tfa
 from tensorflow.keras import layers
 from kerascv.data.voc_segmentation import voc_segmentation_dataset_from_directory
 
