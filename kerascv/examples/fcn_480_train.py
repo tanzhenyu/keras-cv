@@ -46,7 +46,7 @@ def get_fcn_32(input_shape, n_classes=21):
 
 
 def train_val_save_fcn_32():
-    batch_size = 20
+    batch_size = 32
     train_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="train", batch_size=batch_size)
     eval_voc_ds_2012 = voc_segmentation_dataset_from_directory(split="val", batch_size=batch_size)
     strategy = tf.distribute.MirroredStrategy()
@@ -54,20 +54,20 @@ def train_val_save_fcn_32():
         input_shape = (480, 480, 3)
         loss = tf.keras.losses.SparseCategoricalCrossentropy()
         acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
-        optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
+        optimizer = tfa.optimizers.AdamW(weight_decay=0.0002, learning_rate=0.001)
         model = get_fcn_32(input_shape)
         model.compile(optimizer, loss, [acc_metric])
-        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath='./fcn_32_weights/fcn32.{epoch:02d}-{val_loss:.2f}.hdf5',
-            save_best_only=True)
+        ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32.hdf5', save_best_only=True)
+        lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5)
 
     print('-------------------Start Training-------------------')
     print('-------------------Trainable Variables-------------------')
     for var in model.trainable_variables:
         print('var {}, {}'.format(var.name, var.shape))
+    model.summary()
     # 2913 images is around 150 steps
-    model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=10,
-              callbacks=[ckpt_callback], validation_data=eval_voc_ds_2012)
+    model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=40,
+              callbacks=[lr_callback, ckpt_callback], validation_data=eval_voc_ds_2012)
 
 
 if __name__ == "__main__":
