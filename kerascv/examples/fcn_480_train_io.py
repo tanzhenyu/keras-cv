@@ -91,9 +91,9 @@ def train_eval_io():
     val_gen = VOCData(eval_input_img_paths, eval_target_img_paths)
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        model = get_fcn_32()
+        model = get_fcn_32(weights=None)
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
-        iou_metric = MyIOUMetrics(num_classes)
+        iou_metric = MyIOUMetrics()
         model.compile(optimizer, "sparse_categorical_crossentropy", ["accuracy", iou_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32_io.hdf5', save_best_only=True)
         lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)

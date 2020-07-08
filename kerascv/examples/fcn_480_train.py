@@ -10,17 +10,13 @@ num_classes = 21
 input_shape = (480, 480, 3)
 
 
-class MyIOUMetrics(tf.keras.metrics.Metric):
-    def __init__(self, num_classes, name=None, **kwargs):
+class MyIOUMetrics(tf.keras.metrics.MeanIoU):
+    def __init__(self, name=None, **kwargs):
         super(MyIOUMetrics, self).__init__(name=name, **kwargs)
-        self.mean_iou = tf.keras.metrics.MeanIoU(num_classes=num_classes)
 
     def update_state(self, y_true, y_pred, sample_weight=None):
         y_pred = tf.argmax(y_pred, axis=-1)
-        self.mean_iou.update_state(y_true, y_pred, sample_weight)
-
-    def result(self):
-        return self.mean_iou.result()
+        super(MyIOUMetrics, self).update_state(y_true, y_pred, sample_weight)
 
 
 def set_upsampling_weight(layer):
@@ -46,9 +42,9 @@ def set_upsampling_weight(layer):
     kernel.assign(weight)
 
 
-def get_fcn_32():
+def get_fcn_32(weights="imagenet"):
     keras_inp = tf.keras.Input(shape=input_shape, name="fcn_32s")
-    backbone = tf.keras.applications.vgg16.VGG16(include_top=False, weights="imagenet", input_tensor=keras_inp)
+    backbone = tf.keras.applications.vgg16.VGG16(include_top=False, weights=weights, input_tensor=keras_inp)
     x = backbone.outputs[0]
     x = layers.Conv2D(4096, 7, padding="same", activation="relu", name="fc6")(x)
     x = layers.Dropout(0.5)(x)
@@ -92,7 +88,7 @@ def train_val_save_fcn_32():
     with strategy.scope():
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.001, momentum=0.9)
         model = get_fcn_32()
-        iou_metric = MyIOUMetrics(num_classes)
+        iou_metric = MyIOUMetrics()
         model.compile(optimizer, "sparse_categorical_crossentropy", weighted_metrics=["accuracy", iou_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_32.hdf5', save_best_only=True)
         lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=0.01)
@@ -115,7 +111,7 @@ def train_val_save_fcn_16():
     with strategy.scope():
         optimizer = tfa.optimizers.SGDW(weight_decay=0.0002, learning_rate=0.0001, momentum=0.9)
         model = get_fcn_16()
-        iou_metric = MyIOUMetrics(num_classes)
+        iou_metric = MyIOUMetrics()
         model.compile(optimizer, "sparse_categorical_crossentropy", weighted_metrics=["accuracy", iou_metric])
         ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath='fcn_16.hdf5', save_best_only=True)
         lr_callback = tf.keras.callbacks.ReduceLROnPlateau(patience=3, min_delta=0.01)
