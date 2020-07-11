@@ -245,8 +245,7 @@ def train_val_save_deeplab():
     optimizer = tf.keras.optimizers.SGD(lr_scheduler, momentum=momentum)
     loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     iou_metric = MyIOUMetrics()
-    model.compile(optimizer, "sparse_categorical_crossentropy",
-                  weighted_metrics=["accuracy", iou_metric])
+    model.compile(optimizer, loss, weighted_metrics=["accuracy", iou_metric])
     ckpt_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath="deeplabv3_os8.hdf5", save_best_only=True, monitor="val_my_iou_metrics"
     )
