@@ -13,6 +13,7 @@ def voc_segmentation_dataset_from_directory(
         split="train",
         shuffle=True,
         seed=None,
+        preprocess_input=tf.keras.applications.vgg16.preprocess_input,
         n_classes=21,
 ):
     directory = directory or os.path.expanduser('~/VOCdevkit/VOC2012')
@@ -73,7 +74,8 @@ def voc_segmentation_dataset_from_directory(
                         radius=random.random()))
                 # preprocess image before returning
                 img = np.array(img_pil)
-                img = tf.keras.applications.vgg16.preprocess_input(img)
+                if preprocess_input is not None:
+                    img = preprocess_input(img)
                 mask = np.array(mask_pil)
                 sample_weights = np.ones_like(mask, dtype=np.float)
                 ignore_mask_indices = (mask == 255)
