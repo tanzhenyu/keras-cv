@@ -240,3 +240,6 @@ def train_val_save_deeplab():
     model.fit(train_voc_ds_2012.prefetch(tf.data.experimental.AUTOTUNE), epochs=epochs,
               callbacks=[ckpt_callback], validation_data=eval_voc_ds_2012)
 
+
+if __name__ == "__main__":
+    train_val_save_deeplab()
