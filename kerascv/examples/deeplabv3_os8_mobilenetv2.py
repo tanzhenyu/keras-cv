@@ -212,7 +212,7 @@ def mobilenet_v2(input_shape):
     backbone.load_weights(weights_path, by_name=True)
 
     x = deeplab_head(x, dilations=[12, 24, 36])
-    layers.experimental.preprocessing.Resizing(input_shape[0], input_shape[1])(x)
+    x = layers.experimental.preprocessing.Resizing(input_shape[0], input_shape[1])(x)
     model = tf.keras.Model(img_input, x, name='deeplab_v3_mobilenet_v2')
     return model
 
