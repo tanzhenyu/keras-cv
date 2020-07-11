@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.keras import layers
 from kerascv.data.voc_segmentation import voc_segmentation_dataset_from_directory
 
@@ -9,6 +10,8 @@ alpha = 1.0
 model_name = ('mobilenet_v2_weights_tf_dim_ordering_tf_kernels_' +
                           str(alpha) + '_' + str(224) + '_no_top' + '.h5')
 weight_path = BASE_WEIGHT_PATH + model_name
+num_classes = 21
+kernel_reg = tf.keras.regularizers.l2(0.005)
 
 
 class MyIOUMetrics(tf.keras.metrics.MeanIoU):
@@ -31,7 +34,7 @@ def _make_divisible(v, divisor, min_value=None):
 
 
 def _inverted_res_block(inputs, filters, alpha, stride, expansion, block_id, skip_connection, rate):
-    in_channels = inputs.shape[-1].value
+    in_channels = inputs.shape[-1]
     pointwise_conv_filters = int(filters * alpha)
     pointwise_filters = _make_divisible(pointwise_conv_filters, 8)
     x = inputs
@@ -43,7 +46,7 @@ def _inverted_res_block(inputs, filters, alpha, stride, expansion, block_id, ski
                           kernel_size=1,
                           padding="same",
                           use_bias=False,
-                          activation=None,
+                          kernel_regularizer=kernel_reg,
                           name=prefix + 'expand')(x)
         x = layers.BatchNormalization(momentum=0.999, name=prefix + 'expand_BN')(x)
         x = layers.ReLU(6., name=prefix + 'expand_relu')(x)
@@ -55,6 +58,7 @@ def _inverted_res_block(inputs, filters, alpha, stride, expansion, block_id, ski
                                strides=stride,
                                use_bias=False,
                                padding="same",
+                               kernel_regularizer=kernel_reg,
                                dilation_rate=(rate, rate),
                                name=prefix + 'depthwise')(x)
     x = layers.BatchNormalization(momentum=0.999, name=prefix + 'depthwise_BN')(x)
@@ -64,6 +68,7 @@ def _inverted_res_block(inputs, filters, alpha, stride, expansion, block_id, ski
     x = layers.Conv2D(pointwise_filters,
                       kernel_size=1,
                       padding="same",
+                      kernel_regularizer=kernel_reg,
                       use_bias=False,
                       name=prefix + 'project')(x)
     x = layers.BatchNormalization(momentum=0.999, name=prefix + 'project_BN')(x)
@@ -77,8 +82,12 @@ def _inverted_res_block(inputs, filters, alpha, stride, expansion, block_id, ski
 def aspp_conv(inp, filters, dilation):
     o = inp
     with tf.name_scope("ASPP_Conv_" + str(dilation)):
-        o = layers.Conv2D(filters=filters, kernel_size=(3, 3), padding="same",
-                          dilation_rate=dilation, use_bias=False)(o)
+        o = layers.Conv2D(filters=filters,
+                          kernel_size=(3, 3),
+                          padding="same",
+                          kernel_regularizer=kernel_reg,
+                          dilation_rate=dilation,
+                          use_bias=False)(o)
         o = layers.BatchNormalization(momentum=0.999)(o)
         o = layers.ReLU()(o)
     return o
@@ -89,10 +98,10 @@ def aspp_pool(inp, filters):
     h, w, c = o.shape[1:]
     with tf.name_scope("ASPP_Pool_" + str(filters)):
         o = layers.GlobalAveragePooling2D()(o)
-        print('pre reshape x {}'.format(o.shape))
         o = layers.Reshape((1, 1, c))(o)
-        print('post reshape x {}'.format(o.shape))
-        o = layers.Conv2D(filters=filters, kernel_size=(1, 1), padding="same",
+        o = layers.Conv2D(filters=filters,
+                          kernel_size=(1, 1),
+                          kernel_regularizer=kernel_reg,
                           use_bias=False)(o)
         o = layers.BatchNormalization(momentum=0.999)(o)
         o = layers.ReLU()(o)
@@ -104,10 +113,13 @@ def aspp_pool(inp, filters):
 def aspp(inp, dilations):
     out_channels = 256
     results = []
-    with tf.name_scape("ASPP"):
+    with tf.name_scope("ASPP"):
         with tf.name_scope("Conv_1x1"):
             x1 = inp
-            x1 = layers.Conv2D(filters=out_channels, kernel_size=(1, 1), use_bias=False)(x1)
+            x1 = layers.Conv2D(filters=out_channels,
+                               kernel_size=(1, 1),
+                               kernel_regularizer=kernel_reg,
+                               use_bias=False)(x1)
             x1 = layers.BatchNormalization(momentum=0.999)(x1)
             x1 = layers.ReLU()(x1)
             results.append(x1)
@@ -119,7 +131,10 @@ def aspp(inp, dilations):
         results.append(aspp_pool(inp, out_channels))
 
     o = layers.Concatenate()(results)
-    o = layers.Conv2D(filters=out_channels, kernel_size=(1, 1), use_bias=False)(o)
+    o = layers.Conv2D(filters=out_channels,
+                      kernel_size=(1, 1),
+                      kernel_regularizer=kernel_reg,
+                      use_bias=False)(o)
     o = layers.BatchNormalization(momentum=0.999)(o)
     o = layers.ReLU()(o)
     o = layers.Dropout(0.1)(o)
@@ -127,13 +142,13 @@ def aspp(inp, dilations):
     return o
 
 
-def deeplab_head(inp, dilations, n_classes):
+def deeplab_head(inp, dilations):
     o = inp
     o = aspp(o, dilations)
     o = layers.Conv2D(256, kernel_size=(3, 3), padding="same", use_bias=False)(o)
     o = layers.BatchNormalization(momentum=0.999)(o)
     o = layers.ReLU()(o)
-    o = layers.Conv2D(n_classes, kernel_size=(1, 1))(o)
+    o = layers.Conv2D(num_classes, kernel_size=(1, 1))(o)
     return o
 
 
@@ -144,6 +159,7 @@ def mobilenet_v2(input_shape):
                       kernel_size=3,
                       strides=(2, 2),
                       padding="same",
+                      kernel_regularizer=kernel_reg,
                       use_bias=False,
                       name='Conv1')(img_input)
     x = layers.BatchNormalization(momentum=0.999, name='bn_Conv1')(x)
@@ -193,16 +209,17 @@ def mobilenet_v2(input_shape):
 
     backbone = tf.keras.Model(img_input, x)
     weights_path = tf.keras.utils.get_file(model_name, weight_path, cache_subdir='models')
-    backbone.load_weights(weights_path)
+    backbone.load_weights(weights_path, by_name=True)
 
     x = deeplab_head(x, dilations=[12, 24, 36])
+    layers.experimental.preprocessing.Resizing(input_shape[0], input_shape[1])(x)
     model = tf.keras.Model(img_input, x, name='deeplab_v3_mobilenet_v2')
     return model
 
 
 def train_val_save_deeplab():
-    batch_size = 16
-    learning_rate = 0.007
+    batch_size = 8
+    learning_rate = 0.01
     base_size = 513
     crop_size = 513
     epochs = 50
@@ -226,6 +243,7 @@ def train_val_save_deeplab():
 
     model = mobilenet_v2([crop_size, crop_size, 3])
     optimizer = tf.keras.optimizers.SGD(lr_scheduler, momentum=momentum)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     iou_metric = MyIOUMetrics()
     model.compile(optimizer, "sparse_categorical_crossentropy",
                   weighted_metrics=["accuracy", iou_metric])
