@@ -4,7 +4,7 @@ from kerascv.data.voc_segmentation import voc_segmentation_dataset_from_director
 
 
 class MyIOUMetrics(tf.keras.metrics.MeanIoU):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, num_classes, name=None, **kwargs):
         super(MyIOUMetrics, self).__init__(num_classes=num_classes, name=name, **kwargs)
 
     def update_state(self, y_true, y_pred, sample_weight=None):
@@ -22,7 +22,7 @@ def eval_deeplab(weights_path):
             split="val", batch_size=batch_size, base_size=base_size, crop_size=crop_size,
             preprocess_input=preprocess_input
         )
-        iou_metric = tf.keras.metrics.MeanIoU(num_classes=21)
+        iou_metric = MyIOUMetrics(num_classes=21)
         top_k_metric = tf.keras.metrics.SparseTopKCategoricalAccuracy()
         model = tf.keras.models.load_model(weights_path, compile=False)
         model.compile(metrics=[iou_metric, top_k_metric])
