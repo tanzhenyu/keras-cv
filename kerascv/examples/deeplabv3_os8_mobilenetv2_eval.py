@@ -25,7 +25,7 @@ def eval_deeplab(weights_path):
         iou_metric = MyIOUMetrics(num_classes=21)
         top_k_metric = tf.keras.metrics.SparseTopKCategoricalAccuracy()
         model = tf.keras.models.load_model(weights_path, compile=False)
-        model.compile(metrics=[iou_metric, top_k_metric])
+        model.compile(metrics=["accuracy", iou_metric, top_k_metric])
         print('-------------------Start Evaluating {}-------------------'.format(weights_path))
         model.evaluate(eval_voc_ds_2012)
 
