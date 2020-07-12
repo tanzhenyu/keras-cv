@@ -14,6 +14,31 @@ num_classes = 21
 kernel_reg = tf.keras.regularizers.l2(0.005)
 
 
+class FocalLoss(tf.keras.losses.Loss):
+    def __init__(self, alpha=0.25, gamma=2.0, name=None, reduction=tf.keras.losses.Reduction.AUTO):
+        super(FocalLoss, self).__init__(name=name, reduction=reduction)
+        self.alpha = alpha
+        self.gamma = gamma
+
+    # y_true [batch_size, H, W]
+    # y_pred [batch_size, H, W, n_cls]
+    def call(self, y_true, y_pred):
+        with tf.name_scope("FocalLoss"):
+            alpha_t = tf.cast(self.alpha, tf.float32)
+            gamma_t = tf.cast(self.gamma, tf.float32)
+            ones = tf.constant(1., dtype=tf.float32)
+            y_true = tf.one_hot(y_true, depth=num_classes, on_value=1.0, off_value=0.0)[:, :, :, 1:]
+            y_pred = y_pred[:, :, :, 1:]
+            x_ent = tf.nn.sigmoid_cross_entropy_with_logits(y_true, y_pred)
+            p = tf.nn.sigmoid(y_pred)
+            positive_indices = tf.equal(y_true, ones)
+            alpha = tf.where(positive_indices, alpha_t, (ones - alpha_t))
+            pt = tf.where(positive_indices, p, ones - p)
+            losses = alpha * tf.math.pow(ones - pt, gamma_t) * x_ent
+            # [batch_size, H, W]
+            return tf.reduce_sum(losses, axis=-1)
+
+
 class MyIOUMetrics(tf.keras.metrics.MeanIoU):
     def __init__(self, name=None, **kwargs):
         super(MyIOUMetrics, self).__init__(num_classes=num_classes, name=name, **kwargs)
@@ -243,7 +268,8 @@ def train_val_save_deeplab():
 
     model = mobilenet_v2([crop_size, crop_size, 3])
     optimizer = tf.keras.optimizers.SGD(lr_scheduler, momentum=momentum)
-    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    # loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss = FocalLoss()
     iou_metric = MyIOUMetrics()
     top_5_acc = tf.keras.metrics.SparseTopKCategoricalAccuracy()
     model.compile(optimizer, loss, weighted_metrics=["accuracy", iou_metric, top_5_acc])
