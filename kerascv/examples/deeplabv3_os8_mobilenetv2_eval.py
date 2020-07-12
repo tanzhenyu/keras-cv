@@ -15,10 +15,10 @@ class MyIOUMetrics(tf.keras.metrics.Metric):
         y_true = y_true[:, :, :, self.class_id]
         y_pred = tf.nn.sigmoid(y_pred)
         y_pred = y_pred[:, :, :, self.class_id]
-        self.acc_metric.update_state(y_true, y_pred, sample_weight)
+        self.re_metric.update_state(y_true, y_pred, sample_weight)
 
     def result(self):
-        return self.acc_metric.result()
+        return self.re_metric.result()
 
 
 def eval_deeplab(weights_path):
